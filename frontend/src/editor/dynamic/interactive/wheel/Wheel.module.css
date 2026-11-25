@@ -1,0 +1,123 @@
+.form {
+  display: grid;
+  gap: 12px;
+  color: var(--ed-text);
+  font: 400 13px / 1.4 var(--font-sans);
+}
+.hint {
+  margin: 0;
+  color: var(--ed-text-dim);
+}
+.slices {
+  display: grid;
+  gap: 12px;
+  max-height: min(52vh, 480px);
+  overflow: auto;
+  padding: 2px;
+}
+.slice {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--ed-border);
+  border-radius: 8px;
+}
+.slice legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+.slice label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.properties {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: end;
+  gap: 10px;
+}
+.properties input[type='color'] {
+  width: 40px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--ed-border);
+  border-radius: 6px;
+  background: var(--ed-surface);
+  cursor: pointer;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+}
+.total {
+  font-weight: 600;
+}
+.error {
+  margin: 0;
+  color: var(--ed-text);
+}
+.tile {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--ed-border);
+  border-radius: 12px;
+  background: var(--ed-surface);
+  color: var(--ed-text);
+  font: 500 13px / 1.4 var(--font-sans);
+  cursor: pointer;
+}
+.tile svg {
+  width: 112px;
+  max-width: 100%;
+}
+.tile:hover {
+  background: var(--ed-surface-3);
+}
+.tile:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.viewControls {
+  position: absolute;
+  z-index: 1;
+  inset: auto 8px 8px auto;
+  display: flex;
+  gap: 6px;
+}
+.viewControls button {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.viewControls button:focus-visible {
+  position: relative;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  overflow: visible;
+  outline: 2px solid var(--ed-accent);
+}
+.result {
+  position: absolute;
+  inset: 12px 8px auto;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  margin-inline: auto;
+  padding: 8px 16px;
+  border: 1px solid var(--ed-border);
+  border-radius: 8px;
+  background: var(--ed-surface);
+  color: var(--ed-text);
+  font: 600 16px / 1.4 var(--font-sans);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}

@@ -18,6 +18,7 @@ import type {
   TextCase,
 } from '@/types/document'
 import type { ImageGridSpec } from '../../grids/model'
+import type { WheelSpec } from '../../dynamic/interactive/wheel/model'
 
 export interface QrSpec {
   text: string
@@ -43,6 +44,7 @@ export interface DoryProps {
   isPlaceholder?: boolean
   /** Semantic image-grid layout carried by a top-level Fabric group. */
   imageGrid?: ImageGridSpec
+  wheel?: WheelSpec
   /** Stable cell label scoped to the containing image grid. */
   gridCellId?: string
   /** On a picture that fills a placeholder: the frame it stays inside (see objects/slot.ts). */

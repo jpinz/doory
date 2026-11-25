@@ -79,8 +79,19 @@ describe('editor chrome', () => {
     const names = within(rail)
       .getAllByRole('button')
       .map((b) => b.textContent)
-    expect(names.slice(0, 5)).toEqual([t.rail.templates, t.rail.text, t.rail.shapes, t.rail.elements, t.rail.image])
+    expect(names.slice(0, 6)).toEqual([t.rail.templates, t.rail.text, t.rail.shapes, t.rail.elements, t.rail.image, t.rail.dynamic])
     expect(within(screen.getByTestId('ed-topbar')).queryByRole('button', { name: t.rail.text })).not.toBeInTheDocument()
+  })
+
+  it('offers the wheel in the Interactive section of the top-level Dynamic tool', async () => {
+    engine = await mount()
+    await userEvent.click(screen.getByRole('button', { name: t.rail.dynamic }))
+    const panel = await screen.findByRole('complementary', { name: t.rail.dynamic })
+    expect(await within(panel).findByRole('heading', { name: t.wheel.category })).toBeInTheDocument()
+    await userEvent.click(within(panel).getByRole('button', { name: t.wheel.add }))
+    await waitFor(() => expect(engine!.state.selection.kinds).toEqual(['wheel']))
+    expect(objectCount(engine)).toBe(1)
+    expect(panel).toBeInTheDocument()
   })
 
   it('keeps a tool open beside the rail while things are added from it, until its entry is pressed again', async () => {
@@ -166,6 +177,7 @@ describe('editor chrome', () => {
   it('does not expose Edit actions in view-only mode', async () => {
     engine = await mount('shared-view')
     expect(screen.queryByTestId('ed-menu-edit')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ed-add-entry-dynamic')).not.toBeInTheDocument()
   })
 
   it('downloads a portable project backup from the File menu for a guest design', async () => {

@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { DocPage, DoryDocument } from '@/types/document'
-import { type FrameRenderer } from '../animation/frameRenderer'
+import { type FrameInteractions, type FrameRenderer } from '../animation/frameRenderer'
 import { sampleTransition } from '../animation/sampler'
 import { drawTransition } from '../animation/transitionRenderer'
 import { getPageSize } from '../engine/pageSizes'
@@ -18,6 +18,8 @@ import { type MotionCache, type MotionPlan, transitionBetween } from '../present
 import { type Rect, type Size, frameGeometry } from '../presenter/fit'
 import { useElementSize } from '../presenter/useElementSize'
 import { t } from '../strings'
+import wheelStyles from '../dynamic/interactive/wheel/Wheel.module.css'
+import ed from '../chrome/ed.module.css'
 import styles from './Presenter.module.css'
 
 /** How long the stage may hold still before the pages are prepared again for its new size (window drag, notes opening). */
@@ -69,6 +71,11 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
   const [readyIndex, setReadyIndex] = useState<number | null>(null)
   const [failed, setFailed] = useState<number | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [interactive, setInteractive] = useState<FrameInteractions | null>(null)
+  const [wheelStatus, setWheelStatus] = useState('')
+  const wheelPress = useRef<{ id: string; x: number; y: number } | null>(null)
+  const frameTime = useRef(0)
+  const wakeFrame = useRef<(() => void) | null>(null)
   const frameRef = useRef<HTMLCanvasElement>(null)
   const overlayRef = useRef<HTMLCanvasElement>(null)
   /** What the frame canvas holds: which page, and where it sat. */
@@ -102,6 +109,8 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
     let alive = true
     let raf = 0
     const previous = shownRef.current
+    setInteractive(null)
+    setWheelStatus('')
     const motion = plan.pages[index]
     const transition = previous ? transitionBetween(plan, previous.index, index, wraps(loop, previous.index, index, doc.pages.length)) : null
     const stage: Size = { width: size.width, height: size.height }
@@ -141,6 +150,7 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
         const ctx = frame.getContext('2d')
         if (!ctx) return
         const paint = (t: number): void => {
+          frameTime.current = t
           ctx.drawImage(renderer.render(t), 0, 0)
         }
         paint(0)
@@ -154,7 +164,11 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
             if (!alive) return
             const elapsed = now - origin
             paint(Math.max(0, elapsed))
-            if (elapsed < renderer.timing.endMs || renderer.timing.loops) raf = requestAnimationFrame(tick)
+            if (elapsed < renderer.timing.endMs || renderer.timing.loops || renderer.interactive?.spinning) raf = requestAnimationFrame(tick)
+          }
+          wakeFrame.current = () => {
+            cancelAnimationFrame(raf)
+            raf = requestAnimationFrame(tick)
           }
           raf = requestAnimationFrame(tick)
         }
@@ -173,6 +187,7 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
             if (p < 1) raf = requestAnimationFrame(step)
             else {
               showOverlayOff()
+              setInteractive(renderer.interactive ?? null)
               startedRef.current = { index, at: now }
               animate(now)
             }
@@ -180,6 +195,7 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
           raf = requestAnimationFrame(step)
         } else {
           showOverlayOff()
+          setInteractive(renderer.interactive ?? null)
           raf = requestAnimationFrame((now) => {
             if (!alive) return
             const at = continuing ?? now
@@ -203,6 +219,7 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
     }
     return () => {
       alive = false
+      wakeFrame.current = null
       cancelAnimationFrame(raf)
       cache.peek(motion.page, pixelWidth)?.setMediaClock(false, 1)
     }
@@ -214,10 +231,46 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
   const name = (page.name ?? '').trim()
   const label = t.presenter.stage(index + 1, doc.pages.length, name)
   const missing = !ready && failed === index
+  const wheelAtEvent = (event: React.PointerEvent): string | null => {
+    if (!interactive || !ready || overlayLive.current) return null
+    const rect = frameRef.current?.getBoundingClientRect()
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null
+    const pageSize = getPageSize(doc, page.id)
+    return interactive.at((event.clientX - rect.left) / rect.width * pageSize.width, (event.clientY - rect.top) / rect.height * pageSize.height, frameTime.current)
+  }
+  const spin = (id: string): void => {
+    setWheelStatus(t.wheel.spinning)
+    if (interactive?.spin(id, plan.reduced, (text) => setWheelStatus(`${t.wheel.winner}: ${text}`))) wakeFrame.current?.()
+  }
   return (
     <div ref={ref} className={styles.stage} data-testid="present-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
-      <div className={styles.frameBox} style={{ left: css.x, top: css.y, width: css.width, height: css.height }} data-testid="present-frame-box">
+      <div
+        className={styles.frameBox}
+        style={{ left: css.x, top: css.y, width: css.width, height: css.height }}
+        data-testid="present-frame-box"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return
+          const id = wheelAtEvent(event)
+          wheelPress.current = id ? { id, x: event.clientX, y: event.clientY } : null
+          if (id) event.stopPropagation()
+        }}
+        onPointerUp={(event) => {
+          const press = wheelPress.current
+          wheelPress.current = null
+          if (!press) return
+          event.stopPropagation()
+          if (wheelAtEvent(event) === press.id && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 12) spin(press.id)
+        }}
+      >
         <canvas ref={frameRef} className={styles.frame} data-ready={ready} role="img" aria-label={label} data-testid="present-frame" data-page-id={page.id} />
+        {ready && interactive ? (
+          <div className={wheelStyles.viewControls} onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}>
+            {interactive.wheels.map((wheel) => (
+              <button key={wheel.id} type="button" className={ed.btn} onClick={() => spin(wheel.id)}>{t.wheel.spin}: {wheel.label}</button>
+            ))}
+          </div>
+        ) : null}
+        {wheelStatus ? <output className={wheelStyles.result} role="status">{wheelStatus}</output> : null}
         {!ready && !missing ? <div className={styles.preparing} role="status" aria-label={t.presenter.preparing} data-testid="present-preparing" /> : null}
         {missing ? (
           <div className={styles.failed} role="alert">

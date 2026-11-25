@@ -18,6 +18,7 @@ import type { EditorEngine } from '../engine/editor'
 import { getPageSize } from '../engine/pageSizes'
 import { DURATION_MAX_SEC } from './timing'
 import { elementSources } from '../clips/elementSource'
+import { wheelDocuments } from '../dynamic/interactive/wheel/model'
 
 /** The fade that stands in for every transition when the viewer asked for reduced motion. */
 export const REDUCED_TRANSITION: PageTransition = { preset: 'fade', durationMs: 250, easing: 'ease-in-out' }
@@ -54,7 +55,7 @@ export function planMotion(doc: Pick<DoryDocument, 'pages'>, reduced: boolean): 
     const wanted = playableTransition(original.transition)
     return { page, transition: wanted ? (reduced ? REDUCED_TRANSITION : wanted) : null, timing: pageTiming(page) }
   })
-  return { pages, reduced, moves: pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0) }
+  return { pages, reduced, moves: pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0) }
 }
 
 /**
@@ -194,7 +195,7 @@ export class MotionCache {
 /** A cache that renders with the editor's own loaders, so fonts, uploads and effects match the editor and exports. */
 export function createMotionCache(editor: EditorEngine, snapshot: DoryDocument): MotionCache {
   return new MotionCache(
-    (page, multiplier) => createFrameRenderer(page, getPageSize(snapshot, page.id), editor.loadContext, { multiplier, media: elementSources }),
+    (page, multiplier) => createFrameRenderer(page, getPageSize(snapshot, page.id), editor.loadContext, { multiplier, media: elementSources, interactive: true }),
     (page) => getPageSize(snapshot, page.id),
   )
 }

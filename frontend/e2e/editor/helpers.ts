@@ -51,7 +51,7 @@ export async function drag(page: Page, from: { x: number; y: number }, to: { x: 
 }
 
 /** Tools of the top bar (data-testid `ed-add-entry-<id>`), by the id the registry gives them. */
-export type ToolId = 'templates' | 'text' | 'elements' | 'image' | 'shapes' | 'background' | 'brand' | 'layers' | 'animate'
+export type ToolId = 'templates' | 'text' | 'elements' | 'image' | 'shapes' | 'dynamic' | 'background' | 'brand' | 'layers' | 'animate'
 
 /** Opens a tool of the top bar (a drawer under its button or a docked sidebar) unless it is already open. */
 export async function openTool(page: Page, id: ToolId): Promise<void> {

@@ -74,6 +74,15 @@ describe('StickerPanel packs', () => {
     engine = null
   })
 
+  it('keeps interactive wheels out of Stickers and falls back from the old interactive filter', async () => {
+    window.localStorage.setItem('doory.stickers.filter', JSON.stringify({ kind: 'interactive', pack: 'all' }))
+    await open(fakeElements())
+    expect(screen.getByTestId('sticker-category')).toHaveTextContent(t.stickers.all)
+    expect(screen.queryByRole('button', { name: t.wheel.add })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('sticker-category'))
+    expect(screen.queryByRole('option', { name: t.wheel.category })).not.toBeInTheDocument()
+  })
+
   it('updates cached category labels in place when the language changes, keeping the search draft', async () => {
     await open(fakeElements())
     const search = screen.getByTestId('sticker-search')
