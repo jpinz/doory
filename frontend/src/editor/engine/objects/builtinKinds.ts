@@ -18,6 +18,8 @@ import { t } from '../../strings'
 import { CLIP_PROPS, isClip } from '../../clips/model'
 import { readImageGridSpec } from '../../grids/model'
 import { reconcileImageGridChildren } from './imageGrid'
+import '../../dynamic/interactive/wheel/DoryWheel'
+import { readWheel } from '../../dynamic/interactive/wheel/model'
 
 
 const TEXT_TYPES = new Set(['textbox', 'itext', 'text'])
@@ -46,6 +48,18 @@ function hydrateImage(obj: FabricObject): void {
 }
 
 export function registerBuiltinKinds(): void {
+  registerObjectKind({
+    id: 'wheel',
+    label: t.wheel.name,
+    priority: 110,
+    matches: (o) => typeOf(o) === 'dorywheel',
+    extraProps: ['wheel'],
+    prepare(json) {
+      const spec = readWheel(json.wheel)
+      if (spec) json.wheel = spec
+    },
+  })
+
   registerObjectKind({
     id: 'qr',
     label: t.kinds.qr,

@@ -17,6 +17,7 @@ import { ClipboardApi } from './api/clipboard'
 import { CropApi } from './api/crop'
 import { InsertApi } from './api/insert'
 import { ImageGridApi, type CanvasImageFrame } from './api/imageGrids'
+import { WheelsApi } from '../dynamic/interactive/wheel/api'
 import { PagesApi } from './api/pages'
 import { StyleApi } from './api/style'
 import { ViewApi, type ViewportController } from './api/view'
@@ -115,6 +116,7 @@ export class EditorEngine implements PageCanvasHost {
   readonly history: History<HistoryState>
   readonly insert: InsertApi
   readonly imageGrids: ImageGridApi
+  readonly wheels: WheelsApi
   readonly arrange: ArrangeApi
   readonly style: StyleApi
   readonly pages: PagesApi
@@ -163,6 +165,7 @@ export class EditorEngine implements PageCanvasHost {
 
     this.insert = new InsertApi(this)
     this.imageGrids = new ImageGridApi(this)
+    this.wheels = new WheelsApi(this)
     this.arrange = new ArrangeApi(this)
     this.style = new StyleApi(this)
     this.pages = new PagesApi(this)
@@ -235,6 +238,10 @@ export class EditorEngine implements PageCanvasHost {
 
   private listFonts(): ((q: Parameters<EditorAdapter['services']['fonts']['list']>[0]) => ReturnType<EditorAdapter['services']['fonts']['list']>) | null {
     return (q) => this.adapter.services.fonts.list(q)
+  }
+
+  onWheelActivate(pageId: string, id: string): void {
+    this.wheels.spin(pageId, id)
   }
 
   /** Swaps the adapter (guest → account migration); open pages keep working. */

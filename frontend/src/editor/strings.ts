@@ -13,6 +13,26 @@ import { videoStrings } from './dialogs/video/strings'
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many)
 
 const english = {
+  wheel: {
+    category: 'Interactive',
+    name: 'Spinning wheel',
+    add: 'Add spinning wheel',
+    edit: 'Edit wheel slices',
+    slice: 'Slice',
+    content: 'Content',
+    color: 'Color',
+    percentage: 'Percentage',
+    addSlice: 'Add slice',
+    removeSlice: 'Remove slice',
+    equalize: 'Equal percentages',
+    total: 'Total',
+    invalid: 'Enter content for every slice and percentages totaling 100%.',
+    apply: 'Apply',
+    spin: 'Spin wheel',
+    spinning: 'Spinning',
+    winner: 'Winner',
+    hint: 'Slice size matches its chance of winning.',
+  },
   appLabel: 'Design editor',
   untitled: 'Untitled design',
   /** A part of the editor that is downloaded when it is first used (see `ui/loadable.tsx`). */
@@ -307,6 +327,7 @@ const english = {
     text: 'Text',
     elements: 'Stickers',
     image: 'Images',
+    dynamic: 'Dynamic',
     animate: 'Animate',
     shapes: 'Shapes',
     templates: 'Templates',

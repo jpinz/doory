@@ -11,7 +11,7 @@
  *
  * At rest (every enter finished, no exit started) a frame equals the page as the export renders it.
  */
-import { type FabricImage, type FabricObject, StaticCanvas } from 'fabric'
+import { type FabricImage, type FabricObject, Point, StaticCanvas } from 'fabric'
 import type { DocObject, DocPage } from '@/types/document'
 import { type ClipLook, drawWithLook, lookOf } from '../clips/look'
 import { type Clip, clipPlaysAt, clipShownAt, clipTimeAt, readClip } from '../clips/model'
@@ -19,6 +19,8 @@ import { asDory } from '../engine/objects/dory'
 import { type BuiltBackground, buildBackground } from '../engine/objects/background'
 import { renderableObjects } from '../engine/render'
 import { type LoadContext, deserializeObjects } from '../engine/serialization'
+import { DoryWheel, wheelAt, wheelObjects } from '../dynamic/interactive/wheel/DoryWheel'
+import { t } from '../strings'
 import { type Surface, context2d, createCanvas, drawBlurred } from './canvasFx'
 import { type ClipFrameSource, type ClipMediaFactory, sharedSources } from './clipSource'
 import { animationOf, type PageTiming, pageTiming } from './model'
@@ -34,6 +36,8 @@ export const MAX_TILE_PIXELS = 16_000_000
 const OFF_PAGE_MARGIN = 0.25
 
 export interface FrameRendererOptions {
+  /** Presentation-only interactions; exports and previews remain deterministic stills. */
+  interactive?: boolean
   /** Output pixels per page pixel. */
   multiplier: number
   /** Leave the page background out (a frame with transparency). */
@@ -48,6 +52,7 @@ export interface FrameRendererOptions {
 }
 
 export interface FrameRenderer {
+  readonly interactive?: FrameInteractions
   /** Page size in px. */
   readonly page: PageDims
   /** Size of `canvas` in pixels. */
@@ -67,6 +72,13 @@ export interface FrameRenderer {
   /** Stops the clips' playback while this page is off screen. */
   suspendMedia(): void
   dispose(): void
+}
+
+export interface FrameInteractions {
+  readonly wheels: readonly { id: string; label: string }[]
+  readonly spinning: boolean
+  at(x: number, y: number, tMs: number): string | null
+  spin(id: string, reduced: boolean, done: (text: string) => void): boolean
 }
 
 interface DevicePoint {
@@ -104,6 +116,7 @@ interface AnimatedLayer {
   units: Map<SplitBy, UnitBitmap[]>
   /** A video clip: its tile is painted again whenever the clip shows another picture. */
   clip?: ClipPart
+  interactive?: { holder: StaticCanvas; wheels: DoryWheel[]; versions: number[] }
 }
 
 /**
@@ -450,6 +463,10 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   // and column of the page half covered.
   background?.object.set({ strokeWidth: 0 })
   const layers: Layer[] = []
+  const targets = options.interactive ? objects.map((object, i) => {
+    const center = object.getCenterPoint()
+    return { object, doc: docs[i], box: { cx: center.x, cy: center.y, w: object.getScaledWidth(), h: object.getScaledHeight(), angle: object.angle } }
+  }) : []
   const pageRect: Rect = { x: 0, y: 0, w: size.width, h: size.height }
   const reach: Rect = { x: -size.width * OFF_PAGE_MARGIN, y: -size.height * OFF_PAGE_MARGIN, w: size.width * (1 + 2 * OFF_PAGE_MARGIN), h: size.height * (1 + 2 * OFF_PAGE_MARGIN) }
 
@@ -469,7 +486,8 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   objects.forEach((obj, i) => {
     const doc = docs[i]
     const clip = options.media ? readClip(doc) : null
-    if (!isAnimated(doc) && !clip) {
+    const wheels = options.interactive ? wheelObjects([obj]) : []
+    if (!isAnimated(doc) && !clip && wheels.length === 0) {
       run.push(obj)
       return
     }
@@ -484,6 +502,16 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
     for (const by of kinds) {
       const found = textUnitBoxes(obj, by, pad)
       if (found) boxes.set(by, found)
+    }
+    if (wheels.length > 0) {
+      const held = region.w > 0 && region.h > 0 ? holdTile(obj, region, m) : null
+      if (!held) {
+        obj.dispose()
+        return
+      }
+      held.holder.renderAll()
+      layers.push({ kind: 'animated', object: doc, box, tile: held.placed, units: new Map(), interactive: { holder: held.holder, wheels, versions: wheels.map((wheel) => wheel.spinVersion) } })
+      return
     }
     if (clip && media) {
       const held = region.w > 0 && region.h > 0 ? holdTile(obj, region, m) : null
@@ -515,10 +543,47 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   const animated = layers.filter((l): l is AnimatedLayer => l.kind === 'animated')
   const clipLayers = animated.filter((l) => l.clip)
   const parts = clipLayers.map((l) => l.clip as ClipPart)
+  const interactiveParts = animated.flatMap((layer) => layer.interactive ? [layer.interactive] : [])
+  const wheels = interactiveParts.flatMap((part) => part.wheels)
+  const hitContext = wheels.length > 0 ? context2d(createCanvas(1, 1)) : null
   let last: Readonly<Sample>[] | null = null
   let disposed = false
 
   return {
+    interactive: wheels.length > 0 ? {
+      wheels: wheels.map((wheel) => ({ id: asDory(wheel).id!, label: asDory(wheel).name || t.wheel.name })),
+      get spinning() {
+        return wheels.some((wheel) => wheel.isSpinning)
+      },
+      at(x, y, tMs) {
+        if (disposed || !hitContext) return null
+        const point = new Point(x, y)
+        for (let i = targets.length - 1; i >= 0; i--) {
+          const { object, doc, box } = targets[i]
+          const sample = sampleObject(doc, tMs, size, box)
+          const clip = options.media ? readClip(doc) : null
+          if (clip && !clipShownAt(clip, tMs)) continue
+          if (!object.visible || object.opacity === 0 || !sample.visible || sample.opacity <= 0.001 || sample.scaleX === 0 || sample.scaleY === 0) continue
+          hitContext.save()
+          hitContext.setTransform(1, 0, 0, 1, 0, 0)
+          clipTo(hitContext, sample, box, 1)
+          const clipped = !!sample.clip && !hitContext.isPointInPath(x, y)
+          transformTo(hitContext, sample, box, 1)
+          hitContext.translate(-box.cx, -box.cy)
+          const matrix = hitContext.getTransform().inverse()
+          hitContext.restore()
+          if (clipped) continue
+          const local = point.transform([matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f])
+          if (!object.containsPoint(local)) continue
+          const wheel = wheelAt([object], local)
+          return wheel ? asDory(wheel).id ?? null : null
+        }
+        return null
+      },
+      spin(id, reduced, done) {
+        return !disposed && (wheels.find((wheel) => asDory(wheel).id === id)?.spin(reduced, done) ?? false)
+      },
+    } : undefined,
     page: size,
     width,
     height,
@@ -529,6 +594,13 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
       if (disposed) return canvas
       let moved = false
       for (const layer of clipLayers) moved = updateClip(layer, tMs) || moved
+      for (const part of interactiveParts) {
+        if (part.wheels.some((wheel, i) => wheel.spinVersion !== part.versions[i])) {
+          part.versions = part.wheels.map((wheel) => wheel.spinVersion)
+          part.holder.renderAll()
+          moved = true
+        }
+      }
       const samples = animated.map((layer) => {
         const sample = sampleObject(layer.object, tMs, size, layer.box)
         // A split part of a clip stands aside outside its own time, so the part before or after it shows.
@@ -555,6 +627,7 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
     },
     suspendMedia(): void {
       for (const part of parts) part.source.suspend()
+      for (const wheel of wheels) wheel.resetSpin()
     },
     dispose(): void {
       disposed = true
@@ -563,6 +636,7 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
         part.source.dispose()
         void part.holder.dispose()
       }
+      for (const part of interactiveParts) void part.holder.dispose()
       parts.length = 0
       clipLayers.length = 0
       layers.length = 0
