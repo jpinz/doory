@@ -4,6 +4,7 @@
  */
 import { isRunning, remainingMs, type SlideshowConfig, type SlideshowState } from '../machine'
 import type { PagePreview } from '../channel'
+import { resolveNextIndices } from '../navigation'
 
 /** The view re-reads the clock this often. */
 export const VIEW_TICK_MS = 250
@@ -13,7 +14,11 @@ export const SIGNAL_LOST_MS = 4500
 const MAX_EXTRAPOLATION_MS = 5000
 
 export function configOf(pages: readonly PagePreview[]): SlideshowConfig {
-  return { count: pages.length, durations: pages.map((p) => p.durationSec) }
+  return {
+    count: pages.length,
+    durations: pages.map((p) => p.durationSec),
+    nextIndices: resolveNextIndices(pages.map((p) => ({ id: p.id, presentationNext: p.nextPageId }))),
+  }
 }
 
 /**

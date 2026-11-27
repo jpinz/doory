@@ -232,9 +232,9 @@ describe('dashboard home and navigation', () => {
       user: makeUser(),
       handlers: [http.get('*/api/v1/designs/', ({ request }) => HttpResponse.json(page(new URL(request.url).searchParams.get('starred') ? [] : [makeDesign('d1', { title: 'Recent one' })])))],
     })
-    expect(await screen.findByRole('heading', { level: 1, name: 'Create a design' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Create a presentation' })).toBeInTheDocument()
     expect(screen.queryByText(/Good (morning|afternoon|evening)|Working late/)).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Instagram Post/ })).toHaveAttribute('href', '/create?preset=instagram-post')
+    expect(screen.getByRole('link', { name: /Presentation 16:9/ })).toHaveAttribute('href', '/create?preset=presentation')
     expect(await screen.findByRole('link', { name: /Recent one/ })).toHaveAttribute('href', '/design/d1')
     const nav = screen.getByRole('navigation', { name: 'Dashboard' })
     for (const label of ['Home', 'Designs', 'Templates', 'Brand', 'Uploads', 'Trash', 'Settings']) expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument()
@@ -248,11 +248,11 @@ describe('dashboard home and navigation', () => {
 
   it('the create menu offers presets and the full size picker', async () => {
     renderApp('/dashboard', { user: makeUser() })
-    await userEvent.click(await screen.findByRole('button', { name: 'Create a design' }))
-    const menu = await screen.findByRole('menu', { name: 'Create a design' })
+    await userEvent.click(await screen.findByRole('button', { name: 'Create a presentation' }))
+    const menu = await screen.findByRole('menu', { name: 'Create a presentation' })
     expect(within(menu).getByRole('menuitem', { name: 'Presentation (16:9)' })).toBeInTheDocument()
-    await userEvent.click(within(menu).getByRole('menuitem', { name: 'All sizes…' }))
-    expect(await screen.findByRole('dialog', { name: 'Create a design' })).toBeInTheDocument()
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Slide formats' }))
+    expect(await screen.findByRole('dialog', { name: 'Create a presentation' })).toBeInTheDocument()
   })
 
   it('the top search jumps to the designs page with the query', async () => {

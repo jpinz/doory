@@ -251,8 +251,8 @@ export function useDeleteBrandKit() {
   })
 }
 
-export function useTemplateCategories() {
-  return useQuery({ queryKey: qk.templates.categories, queryFn: ({ signal }) => templatesApi.categories(signal), staleTime: 5 * 60_000 })
+export function useTemplateCategories(presentationOnly = false) {
+  return useQuery({ queryKey: presentationOnly ? [...qk.templates.categories, 'presentation'] : qk.templates.categories, queryFn: ({ signal }) => templatesApi.categories(signal, presentationOnly), staleTime: 5 * 60_000 })
 }
 
 export function useTemplatesList(query: TemplateQuery, enabled = true) {

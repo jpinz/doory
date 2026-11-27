@@ -919,6 +919,10 @@
     "source": "(pages: number, sizes: readonly string[], more: number) =>\n    `${pages} ${plural(pages, 'page', 'pages')} · ${sizes.length + more} ${plural(sizes.length + more, 'size', 'sizes')}: ${sizes.join(', ')}${more > 0 ? ` and ${more} more` : ''}`",
     "file": "editor/dialogs/print/strings.ts"
   },
+  "sections.count": {
+    "source": "(count: number) => `${count} ${plural(count, 'slide', 'slides')}`",
+    "file": "editor/strings.ts"
+  },
   "share.expires": {
     "source": "(when: string) => `Expires ${when}`",
     "file": "editor/strings.ts"

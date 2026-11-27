@@ -56,7 +56,12 @@ export function planMotion(doc: Pick<DoryDocument, 'pages'>, reduced: boolean): 
     const wanted = playableTransition(original.transition)
     return { page, transition: wanted ? (reduced ? REDUCED_TRANSITION : wanted) : null, timing: pageTiming(page) }
   })
-  return { pages, reduced, moves: pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0 || dieDocuments(p.page.objects).length > 0) }
+  const hasPresentationLinks = pages.some((p) => p.page.objects.some((object) => object.visible !== false && typeof object.presentationLink?.pageId === 'string'))
+  return {
+    pages,
+    reduced,
+    moves: hasPresentationLinks || pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0 || dieDocuments(p.page.objects).length > 0),
+  }
 }
 
 /**

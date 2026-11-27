@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react'
 import type { EditorAppProps, EditorHandle } from '@/types/adapter'
 import './builtins/commands'
 import './builtins/audio'
@@ -34,6 +34,7 @@ import { Toaster } from './ui/Toaster'
 import { PageStrip } from './workspace/PageStrip'
 import { LazyTimelineHost } from './workspace/TimelineLoader'
 import { Workspace } from './workspace/Workspace'
+import { FlowBoard } from './flow/FlowBoard'
 import styles from './EditorApp.module.css'
 
 /** How many times the code of the live session is fetched again (after 1, 2, 4, 8 s …) before the person is told to reload. */
@@ -57,7 +58,9 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
   const [engine] = useState(() => new EditorEngine({ adapter, document: doc, meta }))
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const [stripOpen, setStripOpen] = useState(false)
+  const [stripOpen, setStripOpen] = useState(true)
+  const [view, setView] = useState<'slides' | 'flow'>('slides')
+  const viewId = useId()
   const latest = useLatest({ onTitleChange, onSaveStateChange })
   const [session, setSession] = useState<CollabSession | null>(null)
   const [liveEpoch, setLiveEpoch] = useState(0)
@@ -154,8 +157,8 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
     return () => mq.removeEventListener('change', apply)
   }, [engine])
 
-  useKeyboardShortcuts(engine, rootRef)
-  useClipboardEvents(engine, rootRef)
+  useKeyboardShortcuts(engine, rootRef, view === 'slides')
+  useClipboardEvents(engine, rootRef, view === 'slides')
 
   const setRootEl = useCallback((el: HTMLDivElement | null) => {
     rootRef.current = el
@@ -163,6 +166,17 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
   }, [])
 
   const onTitle = (title: string): void => latest.current.onTitleChange?.(title)
+  const changeView = (next: 'slides' | 'flow'): void => {
+    if (next === 'flow') {
+      engine.clearSelection()
+      engine.patchUi({ spaceDown: false, panelId: null })
+    } else {
+      const pageId = engine.state.activePageId
+      engine.pages.activate(pageId)
+      requestAnimationFrame(() => engine.view.scrollToPage(pageId))
+    }
+    setView(next)
+  }
 
   return (
     <div ref={setRootEl} className={styles.root} data-editor-root aria-label={t.appLabel} role="application">
@@ -172,19 +186,37 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
           <ConflictBanner onResolve={onConflictResolve} />
           <CollabBanner />
           <MissingFontsNotice />
+          <div className={styles.viewTabs} role="tablist" aria-label={t.flowBoard.modes} onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return
+            event.preventDefault()
+            const next = event.key === 'Home' ? 'slides' : event.key === 'End' ? 'flow' : view === 'slides' ? 'flow' : 'slides'
+            changeView(next)
+            event.currentTarget.querySelector<HTMLButtonElement>(`[data-view="${next}"]`)?.focus()
+          }}>
+            {(['slides', 'flow'] as const).map((mode) => <button key={mode} type="button" role="tab" data-view={mode}
+              id={`${viewId}-${mode}-tab`} aria-controls={`${viewId}-${mode}-panel`} aria-selected={view === mode}
+              tabIndex={view === mode ? 0 : -1} onClick={() => changeView(mode)}>{t.flowBoard[mode]}</button>)}
+          </div>
           <div className={styles.body}>
-            <ToolRail edge="side" />
-            <SidebarHost />
+            {view === 'slides' ? <><ToolRail edge="side" /><SidebarHost /></> : null}
             <div className={styles.main}>
-              <ContextualToolbar />
-              <Workspace stripOpen={stripOpen} onToggleStrip={() => setStripOpen((o) => !o)} />
-              <NotesHost />
-              <LazyTimelineHost />
-              {stripOpen ? <PageStrip /> : null}
+              <div className={styles.slideWorkspace} role="tabpanel" id={`${viewId}-slides-panel`} aria-labelledby={`${viewId}-slides-tab`} hidden={view !== 'slides'}>
+                <ContextualToolbar />
+                <Workspace stripOpen={stripOpen} onToggleStrip={() => setStripOpen((o) => !o)} />
+                <NotesHost />
+                <LazyTimelineHost />
+                {stripOpen ? <PageStrip /> : null}
+              </div>
+              <div className={styles.slideWorkspace} role="tabpanel" id={`${viewId}-flow-panel`} aria-labelledby={`${viewId}-flow-tab`} hidden={view !== 'flow'}>
+                {view === 'flow' ? <FlowBoard onEdit={(pageId) => {
+                  setView('slides')
+                  engine.pages.activate(pageId)
+                  requestAnimationFrame(() => engine.view.scrollToPage(pageId))
+                }} /> : null}
+              </div>
             </div>
           </div>
-          <ToolRail edge="bottom" />
-          <DrawerHost />
+          {view === 'slides' ? <><ToolRail edge="bottom" /><DrawerHost /></> : null}
         </ChromeProvider>
         <DialogHost onTitle={onTitle} />
         <BrandSync />

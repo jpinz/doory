@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 /** Native drag & drop reordering state shared by the page strip and the Pages panel. */
-export function usePageDnd(onMove: (id: string, toIndex: number) => void) {
+export function usePageDnd(onMove: (id: string, toIndex: number, targetId: string) => void) {
   const [dragId, setDragId] = useState<string | null>(null)
   const [over, setOver] = useState<{ id: string; side: 'before' | 'after' } | null>(null)
 
@@ -24,7 +24,7 @@ export function usePageDnd(onMove: (id: string, toIndex: number) => void) {
         const from = order.indexOf(dragId)
         let to = index + (over.side === 'after' ? 1 : 0)
         if (from < to) to -= 1
-        if (from !== to) onMove(dragId, to)
+        onMove(dragId, to, over.id)
       }
       setDragId(null)
       setOver(null)

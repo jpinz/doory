@@ -4,6 +4,22 @@ import { BUILTIN_PRESET_TREE } from './builtin'
 import { buildCatalogue, type SizePresetCatalogue } from './catalogue'
 
 export const BUILTIN_CATALOGUE = buildCatalogue(BUILTIN_PRESET_TREE) as SizePresetCatalogue
+const presentationCatalogues = new WeakMap<SizePresetCatalogue, SizePresetCatalogue>()
+
+/** Creation offers slide formats only; the full catalogue still describes existing documents. */
+export function presentationCatalogue(catalogue: SizePresetCatalogue): SizePresetCatalogue {
+  const cached = presentationCatalogues.get(catalogue)
+  if (cached) return cached
+  const presets = catalogue.presets.filter((preset) => preset.path.some((group) => group.slug === 'presentation'))
+  if (presets.length === 0) return presentationCatalogue(BUILTIN_CATALOGUE)
+  const included = new Set(presets)
+  const filterGroups = (groups: SizePresetCatalogue['groups']): SizePresetCatalogue['groups'] => groups
+    .map((group) => ({ ...group, presets: group.presets.filter((preset) => included.has(preset)), children: filterGroups(group.children) }))
+    .filter((group) => group.presets.length > 0 || group.children.length > 0)
+  const result = { groups: filterGroups(catalogue.groups), presets, byId: new Map([...catalogue.byId].filter(([, preset]) => included.has(preset))) }
+  presentationCatalogues.set(catalogue, result)
+  return result
+}
 
 /** How long a page that needs the catalogue (`/create?preset=…`) waits for it before using the built-in one. */
 const WAIT_MS = 4000

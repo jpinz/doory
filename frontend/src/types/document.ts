@@ -33,6 +33,8 @@ export interface DocObject {
   name?: string
   locked?: boolean
   visible?: boolean
+  /** Slide this object opens when clicked during a presentation. */
+  presentationLink?: { pageId: string }
   [prop: string]: unknown
 }
 
@@ -51,15 +53,25 @@ export interface DocPage {
   objects: DocObject[]
   notes?: string
   durationSec?: number
+  /** Absent: follow slide order; null: end the show; otherwise advance to this slide. */
+  presentationNext?: string | null
+  flowPosition?: { x: number; y: number }
+  sectionId?: string
   guides?: PageGuide[]
   /** How the page comes in when a presentation or a video reaches it (see `editor/animation`). */
   transition?: PageTransition
+}
+
+export interface SlideSection {
+  id: string
+  name: string
 }
 
 export interface DocMeta {
   presetId?: string
   bleedPx?: number
   brandKitId?: string
+  sections?: SlideSection[]
 }
 
 export interface DoryDocument {

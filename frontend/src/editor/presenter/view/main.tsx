@@ -11,14 +11,16 @@ import '@fontsource-variable/caveat'
 import '@/styles/tokens.css'
 import '@/styles/global.css'
 import { initContrast } from '@/lib/contrast'
+import { FlowMapView } from './FlowMapView'
 import { PresenterView } from './PresenterView'
 
 initContrast()
 
-const session = new URLSearchParams(location.search).get('session')
+const params = new URLSearchParams(location.search)
+const session = params.get('session')
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <PresenterView session={session} />
+    {params.get('panel') === 'flow' ? <FlowMapView session={session} /> : <PresenterView session={session} />}
   </StrictMode>,
 )

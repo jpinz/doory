@@ -52,6 +52,36 @@ describe('navigation', () => {
     expect(run(cfg, s, { type: 'goto', index: -1 }).index).toBe(0)
   })
 
+  it('returns through the interactive navigation history', () => {
+    let s = run(cfg, initialState(cfg), { type: 'follow', index: 2 }, { type: 'follow', index: 1 })
+    expect(s).toMatchObject({ index: 1, history: [0, 2] })
+    s = run(cfg, s, { type: 'prev' })
+    expect(s).toMatchObject({ index: 2, history: [0] })
+    s = run(cfg, s, { type: 'prev' })
+    expect(s).toMatchObject({ index: 0, history: [] })
+  })
+
+  it('follows question, answer and board routes and clears the completed return history', () => {
+    const flow = { ...cfg, nextIndices: [null, 0, 1] }
+    let s = run(flow, initialState(flow), { type: 'follow', index: 2 }, { type: 'next' })
+    expect(s).toMatchObject({ index: 1, history: [0] })
+    expect(run(flow, s, { type: 'prev' })).toMatchObject({ index: 0, history: [] })
+    s = run(flow, s, { type: 'next' })
+    expect(s).toMatchObject({ index: 0, history: [] })
+  })
+
+  it('clears a branch when a clickable object links back to its origin', () => {
+    expect(run(cfg, initialState(cfg), { type: 'follow', index: 2 }, { type: 'follow', index: 0 })).toMatchObject({ index: 0, history: [] })
+  })
+
+  it('can end before the final slide and auto-advances along the same routes', () => {
+    const flow = { ...config([1, 1, 1]), nextIndices: [2, null, 1] }
+    let s = tickFor(flow, initialState(flow, { autoAdvance: true }), 2000)
+    expect(s).toMatchObject({ index: 1, ended: false })
+    s = run(flow, s, { type: 'next' })
+    expect(s).toMatchObject({ index: 1, ended: true })
+  })
+
   it('shows the end screen after the last page, and Back returns to it', () => {
     let s = run(cfg, initialState(cfg, { index: 2 }), { type: 'next' })
     expect(s.ended).toBe(true)

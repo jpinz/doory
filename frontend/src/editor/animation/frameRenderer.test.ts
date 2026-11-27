@@ -124,6 +124,15 @@ describe('createFrameRenderer', () => {
     renderer.dispose()
   })
 
+  it('activates slide links on the topmost object', async () => {
+    const linked = rect('linked', '#ff0000', 80, 80, undefined, { presentationLink: { pageId: 'target' } })
+    const cover = rect('cover', '#0000ff', 95, 80)
+    const renderer = await createFrameRenderer(page([linked, cover]), SIZE, ctx, { multiplier: 1, interactive: true })
+    expect(renderer.interactive?.targetAt(60, 80, 0)).toBe('target')
+    expect(renderer.interactive?.targetAt(95, 80, 0)).toBeNull()
+    renderer.dispose()
+  })
+
   it('draws a page without animation exactly like the export does', async () => {
     const p = page([rect('a', '#ff0000', 60, 60), rect('b', '#0000ff', 150, 100)], '#fffbe0')
     const renderer = await createFrameRenderer(p, SIZE, ctx, { multiplier: 1 })

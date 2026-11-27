@@ -13,9 +13,9 @@ describe('previewsOf', () => {
   it('describes each page by its own size, name, notes and resolved time', () => {
     const doc = docOf(page('a', { name: ' Intro ', notes: 'Hello' }), page('b', { width: 1080, height: 1080 }), page('c', { width: 1080, height: 1920 }))
     expect(previewsOf(doc, [3, null, 8])).toEqual([
-      { id: 'a', name: 'Intro', notes: 'Hello', durationSec: 3, width: 1920, height: 1080, wheels: [], dice: [] },
-      { id: 'b', name: '', notes: '', durationSec: null, width: 1080, height: 1080, wheels: [], dice: [] },
-      { id: 'c', name: '', notes: '', durationSec: 8, width: 1080, height: 1920, wheels: [], dice: [] },
+      { id: 'a', name: 'Intro', notes: 'Hello', durationSec: 3, width: 1920, height: 1080, actions: [], flow: { x: 60, y: 80 }, links: [], wheels: [], dice: [] },
+      { id: 'b', name: '', notes: '', durationSec: null, width: 1080, height: 1080, actions: [], flow: { x: 380, y: 80 }, links: [], wheels: [], dice: [] },
+      { id: 'c', name: '', notes: '', durationSec: 8, width: 1080, height: 1920, actions: [], flow: { x: 700, y: 80 }, links: [], wheels: [], dice: [] },
     ])
   })
 
@@ -40,6 +40,20 @@ describe('previewsOf', () => {
     expect(dice[1].box!.y).toBeCloseTo(0.1)
   })
 
+  it('gives the flow map each slide\'s section, saved spot and linked elements', () => {
+    const doc: DoryDocument = {
+      ...docOf(
+        page('a', { sectionId: 's1', flowPosition: { x: 500, y: 40 }, objects: [{ id: 'o', type: 'rect', left: 960, top: 540, width: 100, height: 100, originX: 'left', originY: 'top', presentationLink: { pageId: 'b' } } as never] }),
+        page('b', { sectionId: 's1' }),
+      ),
+      meta: { sections: [{ id: 's1', name: 'Round 1' }] },
+    } as DoryDocument
+    const [a, b] = previewsOf(doc, [null, null])
+    expect(a).toMatchObject({ flow: { x: 500, y: 40 }, section: { id: 's1', name: 'Round 1' } })
+    expect(a.links).toEqual([{ pageId: 'b', x: (960 + 50) / 1920, y: (540 + 50) / 1080 }])
+    expect(b.flow).toEqual({ x: 380, y: 60 })
+  })
+
   it('cuts what a hand-made document holds to what the channel carries, so one odd page cannot stop the view', () => {
     const doc = docOf(page('a', { name: 'n'.repeat(500), notes: 'x'.repeat(9000), width: 99_999, height: 30_000 }), page('b'))
     const previews = previewsOf(doc, [null, null])
@@ -54,5 +68,15 @@ describe('previewsOf', () => {
   it('treats notes that are not text as no notes', () => {
     const doc = docOf(page('a', { notes: 5 as unknown as string }))
     expect(previewsOf(doc, [null])[0].notes).toBe('')
+  })
+
+  it('carries flow routes to the presenter window and falls back for deleted destinations', () => {
+    const doc = docOf(page('a', { presentationNext: 'c' }), page('b', { presentationNext: 'deleted' }), page('c', { presentationNext: null }))
+    const previews = previewsOf(doc, [null, null, null])
+    expect(previews.map((p) => p.nextPageId)).toEqual(['c', 'c', null])
+    expect(parseMessage({
+      v: 1, from: 'show', kind: 'init', title: 'Flow', theme: null, pages: previews,
+      state: initialState({ count: 3, durations: [null, null, null] }),
+    }, 'view')).not.toBeNull()
   })
 })

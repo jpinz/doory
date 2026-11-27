@@ -236,8 +236,11 @@ export function ArrangePanel() {
 export function LinkPanel() {
   const editor = useEditor()
   const sel = useSelection()
+  const doc = useEditorState((s) => s.doc)
   const url = (sel.objects[0]?.link as { url?: string } | undefined)?.url ?? ''
+  const currentTarget = (sel.objects[0]?.presentationLink as { pageId?: string } | undefined)?.pageId ?? ''
   const [value, setValue] = useState(url)
+  const [target, setTarget] = useState(currentTarget)
   const valid = /^https?:\/\/\S+$/i.test(value)
   return (
     <PopoverStack width={248}>
@@ -268,6 +271,29 @@ export function LinkPanel() {
         <button type="button" className={`${ed.btn} ${ed.primary}`} disabled={!valid} onClick={() => editor.style.setLink(value)}>
           <Check size={14} aria-hidden="true" />
           {t.tools.linkApply}
+        </button>
+      </div>
+      <Field label={t.presentationLink.targetLabel}>
+        <select className={ed.propInput} aria-label={t.presentationLink.targetLabel} value={target} onChange={(event) => setTarget(event.target.value)}>
+          <option value="">{t.presentationLink.noTarget}</option>
+          {doc.pages.filter((page) => page.id !== sel.pageId).map((page) => {
+            const index = doc.pages.indexOf(page)
+            return <option key={page.id} value={page.id}>{page.name?.trim() || t.workspace.page(index + 1)}</option>
+          })}
+        </select>
+      </Field>
+      <div className={styles.actionsRow}>
+        {currentTarget ? (
+          <button type="button" className={`${ed.btn} ${ed.ghost}`} onClick={() => {
+            editor.style.setPresentationLink(null)
+            setTarget('')
+          }}>
+            {t.presentationLink.remove}
+          </button>
+        ) : null}
+        <button type="button" className={`${ed.btn} ${ed.primary}`} disabled={!target} onClick={() => editor.style.setPresentationLink(target)}>
+          <Check size={14} aria-hidden="true" />
+          {t.presentationLink.apply}
         </button>
       </div>
     </PopoverStack>

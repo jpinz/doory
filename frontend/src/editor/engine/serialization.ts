@@ -51,6 +51,8 @@ export const EXTRA_PROPS: readonly string[] = [
   'slot',
   /** Hyperlink for PDF / shared view. */
   'link',
+  /** Destination slide for interactive presentations. */
+  'presentationLink',
   /** Template field tag: a stable name for data to fill. */
   'field',
   /** Shrink-to-fit rule and derived size for text boxes. */

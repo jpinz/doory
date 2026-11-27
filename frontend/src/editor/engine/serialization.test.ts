@@ -58,6 +58,17 @@ describe('serialization', () => {
     expect(o.text).toBe('Hi')
     expect('version' in o).toBe(false)
     expect(EXTRA_PROPS).toContain('curveAmount')
+    expect(EXTRA_PROPS).toContain('presentationLink')
+  })
+
+  it('round-trips presentation destinations', async () => {
+    const c = newCanvas()
+    const object = createRect(at, 100, 0)
+    asDory(object).presentationLink = { pageId: 'answer-slide' }
+    c.add(object)
+    const out = await roundTrip(serializeObjects(c))
+    expect(out[0].presentationLink).toEqual({ pageId: 'answer-slide' })
+    c.dispose()
   })
 
   it('round-trips every built-in shape kind identically (idempotent)', async () => {

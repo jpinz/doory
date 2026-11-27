@@ -3,7 +3,7 @@
   --s: 1;
   position: relative;
   width: 100%;
-  height: calc(31.25rem * var(--s));
+  height: calc(19rem * var(--s));
   margin-top: var(--space-16);
 }
 
@@ -12,7 +12,7 @@
   top: 0;
   left: 50%;
   width: 51.25rem;
-  height: 31.25rem;
+  height: 19rem;
   transform: translateX(-50%) scale(var(--s));
   transform-origin: top center;
 }
@@ -21,9 +21,9 @@
   position: absolute;
   bottom: 2.9rem;
   left: 50%;
-  width: 15.625rem;
-  height: 23.125rem;
-  margin-left: -7.8125rem;
+  width: 17.5rem;
+  height: 9.84375rem;
+  margin-left: -8.75rem;
   transition: transform 0.45s cubic-bezier(0.2, 0.9, 0.25, 1.2);
 }
 
@@ -53,9 +53,9 @@
 .art > .middle {
   --tape: var(--pastel-pink);
   z-index: 2;
-  width: 15rem;
-  height: 26.67rem;
-  margin-left: -7.5rem;
+  width: 19rem;
+  height: 10.6875rem;
+  margin-left: -9.5rem;
   transform: translateY(-0.9rem) rotate(1.5deg);
 }
 
@@ -129,12 +129,44 @@
   line-height: 1;
 }
 
-/* A template picture filling its card. */
-.picture {
-  display: block;
+.scene {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--pastel-mint);
+}
+
+.middle .scene {
+  background: var(--pastel-pink);
+}
+
+.right .scene {
+  background: var(--pastel-sky);
+}
+
+.scene strong {
+  font-size: 1.3rem;
+}
+
+.scene .answer {
+  font-size: 3rem;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+}
+
+.board span {
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-weight: 700;
 }
 
 @media (max-width: 900px) {

@@ -408,6 +408,7 @@ export interface TemplateQuery {
   q?: string
   orientation?: 'landscape' | 'portrait' | 'square'
   preset?: string
+  presentation_only?: boolean
   featured?: boolean
   ordering?: 'use_count' | '-use_count' | 'created_at' | '-created_at' | 'title' | '-title'
   page?: number

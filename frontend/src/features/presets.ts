@@ -1,5 +1,5 @@
 import { MAX_DIMENSION_PX, type DocUnit } from '@/types/document'
-import { getSizePresets, type SizePreset, type SizePresetCatalogue } from '@/lib/sizePresets'
+import { getSizePresets, presentationCatalogue, type SizePreset, type SizePresetCatalogue } from '@/lib/sizePresets'
 
 export type { SizePreset } from '@/lib/sizePresets'
 
@@ -43,7 +43,7 @@ export function formatUnitValue(value: number, unit: CustomUnit): string {
   return String(Math.round(value * 100) / 100)
 }
 
-export const DEFAULT_PRESET_ID = 'instagram-post'
+export const DEFAULT_PRESET_ID = 'presentation'
 
 /** The preset a slug (or one of its aliases) names in the catalogue, by default the one loaded now. */
 export function getPreset(id: string | null | undefined, catalogue: SizePresetCatalogue = getSizePresets()): SizePreset | undefined {
@@ -117,17 +117,18 @@ export interface TemplateSpec {
 export function resolveCreateSpec(params: URLSearchParams, catalogue: SizePresetCatalogue = getSizePresets()): CreateSpec | TemplateSpec {
   const slug = params.get('template')
   if (slug && /^[\w-]{1,120}$/.test(slug)) return { kind: 'template', slug }
-  const fallback = getPreset(DEFAULT_PRESET_ID, catalogue) ?? catalogue.presets[0]
-  const preset = getPreset(params.get('preset'), catalogue)
-  if (preset) return { kind: 'size', width: preset.width, height: preset.height, unit: preset.unit, presetId: preset.id, title: 'Untitled design' }
+  const slides = presentationCatalogue(catalogue)
+  const fallback = getPreset(DEFAULT_PRESET_ID, slides) ?? slides.presets[0]
+  const preset = getPreset(params.get('preset'), slides)
+  if (preset) return { kind: 'size', width: preset.width, height: preset.height, unit: preset.unit, presetId: preset.id, title: 'Untitled presentation' }
   const w = params.get('w')
   const h = params.get('h')
   if (w && h) {
     const unit = (CUSTOM_UNITS as string[]).includes(params.get('unit') ?? '') ? (params.get('unit') as CustomUnit) : 'px'
     const parsed = parseCustomSize({ width: w, height: h, unit })
-    if (parsed.ok) return { kind: 'size', width: parsed.width, height: parsed.height, unit: parsed.unit, title: 'Untitled design' }
+    if (parsed.ok) return { kind: 'size', width: parsed.width, height: parsed.height, unit: parsed.unit, title: 'Untitled presentation' }
   }
-  return { kind: 'size', width: fallback.width, height: fallback.height, unit: fallback.unit, presetId: fallback.id, title: 'Untitled design' }
+  return { kind: 'size', width: fallback.width, height: fallback.height, unit: fallback.unit, presetId: fallback.id, title: 'Untitled presentation' }
 }
 
 export function createUrl(target: { presetId: string } | { width: number; height: number; unit: CustomUnit } | { template: string }): string {
