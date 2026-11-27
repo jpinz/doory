@@ -3,6 +3,7 @@ import type { DocPage, DoryDocument } from '@/types/document'
 import { parseMessage } from './channel'
 import { initialState } from './machine'
 import { previewsOf } from './useViewHost'
+import { defaultWheel } from '../dynamic/interactive/wheel/model'
 
 const page = (id: string, extra: Partial<DocPage> = {}): DocPage => ({ id, background: { type: 'solid', color: '#ffffff' }, objects: [], ...extra })
 const docOf = (...pages: DocPage[]): DoryDocument => ({ schemaVersion: 1, width: 1920, height: 1080, unit: 'px', pages })
@@ -11,10 +12,16 @@ describe('previewsOf', () => {
   it('describes each page by its own size, name, notes and resolved time', () => {
     const doc = docOf(page('a', { name: ' Intro ', notes: 'Hello' }), page('b', { width: 1080, height: 1080 }), page('c', { width: 1080, height: 1920 }))
     expect(previewsOf(doc, [3, null, 8])).toEqual([
-      { id: 'a', name: 'Intro', notes: 'Hello', durationSec: 3, width: 1920, height: 1080 },
-      { id: 'b', name: '', notes: '', durationSec: null, width: 1080, height: 1080 },
-      { id: 'c', name: '', notes: '', durationSec: 8, width: 1080, height: 1920 },
+      { id: 'a', name: 'Intro', notes: 'Hello', durationSec: 3, width: 1920, height: 1080, wheels: [] },
+      { id: 'b', name: '', notes: '', durationSec: null, width: 1080, height: 1080, wheels: [] },
+      { id: 'c', name: '', notes: '', durationSec: 8, width: 1080, height: 1920, wheels: [] },
     ])
+  })
+
+  it('describes visible wheels on each page, including grouped wheels', () => {
+    const wheel = { id: 'w1', type: 'dorywheel', name: 'Prize', wheel: defaultWheel() }
+    const doc = docOf(page('a', { objects: [{ id: 'group', type: 'group', objects: [wheel] }, { ...wheel, id: 'hidden', visible: false }] }), page('b'))
+    expect(previewsOf(doc, [null, null]).map((p) => p.wheels)).toEqual([[{ id: 'w1', label: 'Prize' }], []])
   })
 
   it('cuts what a hand-made document holds to what the channel carries, so one odd page cannot stop the view', () => {

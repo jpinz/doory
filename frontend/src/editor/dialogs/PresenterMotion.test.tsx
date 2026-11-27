@@ -6,6 +6,9 @@ import { createMemoryAdapter } from '../dev/memoryAdapter'
 import { EditorProvider } from '../EditorProvider'
 import { EditorEngine } from '../engine/editor'
 import { t } from '../strings'
+import { defaultWheel } from '../dynamic/interactive/wheel/model'
+import { openLink } from '../presenter/channel'
+import { createChannelHub } from '../presenter/testing'
 import { Presenter } from './Presenter'
 
 class FakeObserver {
@@ -25,12 +28,12 @@ function deck(): DoryDocument {
   return doc
 }
 
-async function setup(doc: DoryDocument) {
+async function setup(doc: DoryDocument, props?: Record<string, unknown>) {
   const engine = new EditorEngine({ adapter: createMemoryAdapter().adapter, document: doc, meta: { id: 'd', title: 'Deck', mode: 'guest' }, ephemeral: true })
   await act(async () => {
     render(
       <EditorProvider engine={engine} portalRoot={document.body}>
-        <Presenter />
+        <Presenter props={props} />
       </EditorProvider>,
     )
   })
@@ -135,5 +138,34 @@ describe('Presenter with motion', () => {
     await key('ArrowRight')
     await key('ArrowRight')
     expect(JSON.stringify(engine.state.doc)).toBe(before)
+  })
+
+  it('spins the current wheel from the presenter channel and reports its result', async () => {
+    const session = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+    const hub = createChannelHub()
+    vi.stubGlobal('BroadcastChannel', class {
+      private channel = hub.create()
+      postMessage(message: unknown): void { this.channel.postMessage(message) }
+      addEventListener(type: 'message', listener: (event: MessageEvent) => void): void { this.channel.addEventListener(type, listener) }
+      removeEventListener(type: 'message', listener: (event: MessageEvent) => void): void { this.channel.removeEventListener(type, listener) }
+      close(): void { this.channel.close() }
+    })
+    stubReducedMotion(true)
+    const doc = createBlankDocument(400, 300)
+    const pageId = doc.pages[0].id
+    doc.pages[0].objects = [{ id: 'wheel', type: 'dorywheel', name: 'Prize', wheel: defaultWheel(), left: 200, top: 150, width: 200, height: 200 }]
+    const view = openLink(session, 'view')
+    if (!view) throw new Error('no channel')
+    const received = vi.fn()
+    view.subscribe(received)
+    engine = await setup(doc, { session })
+    const before = JSON.stringify(engine.state.doc)
+    await waitFor(() => expect(screen.getByRole('button', { name: `${t.wheel.spin}: Prize` })).toBeInTheDocument())
+    act(() => view.send({ kind: 'command', command: { action: 'spin-wheel', pageId: 'other', wheelId: 'wheel' } }))
+    expect(received).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'wheel-status' }))
+    act(() => view.send({ kind: 'command', command: { action: 'spin-wheel', pageId, wheelId: 'wheel' } }))
+    expect(received).toHaveBeenCalledWith(expect.objectContaining({ kind: 'wheel-status', pageId, text: expect.stringContaining(t.wheel.winner) }))
+    expect(JSON.stringify(engine.state.doc)).toBe(before)
+    view.close()
   })
 })

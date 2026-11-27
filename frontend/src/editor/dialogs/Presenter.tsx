@@ -25,7 +25,7 @@ import { useViewHost } from '../presenter/useViewHost'
 import { hasStashedView, isWindowOpen, openViewWindow, takeViewWindow } from '../presenter/viewWindow'
 import { t } from '../strings'
 import { PresenterControls } from './PresenterControls'
-import { PresenterMotionStage } from './PresenterMotionStage'
+import { PresenterMotionStage, type MotionStageHandle } from './PresenterMotionStage'
 import { PresenterStage } from './PresenterStage'
 import { PresenterTimeline } from './PresenterTimeline'
 import styles from './Presenter.module.css'
@@ -88,6 +88,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const dotRef = useRef<HTMLDivElement>(null)
   const viewWindow = useRef<Window | null>(null)
+  const motionStage = useRef<MotionStageHandle>(null)
   // "Present with notes" asked for a second window; if the browser did not give one, say so and show the notes here.
   const [noWindow] = useState(() => wantsNotes && !hasStashedView(session))
   const [notesOpen, setNotesOpen] = useState(noWindow)
@@ -102,7 +103,8 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   const idle = useIdle(IDLE_MS)
 
   const close = useCallback(() => editor.closeDialog(), [editor])
-  const host = useViewHost({ session, title, doc, durations, state, dispatch, onExit: close, previews })
+  const spinWheel = useCallback((pageId: string, wheelId: string) => motionStage.current?.spin(pageId, wheelId) ?? false, [])
+  const host = useViewHost({ session, title, doc, durations, state, dispatch, onExit: close, onSpinWheel: spinWheel, previews })
   const viewOpen = host.connected && windowOpen
 
   // Everything the key handler reads: it is registered once and must never see stale values.
@@ -348,7 +350,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
     >
       <div className={styles.main}>
         {motionFrames ? (
-          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} onPointerDown={onStageDown} onPointerUp={onStageUp}>
+          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} spinRef={motionStage} onWheelStatus={host.wheelStatus} onPointerDown={onStageDown} onPointerUp={onStageUp}>
             {stageOverlays}
           </PresenterMotionStage>
         ) : (

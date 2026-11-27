@@ -74,7 +74,7 @@ interface PresenterViewProps {
 
 export function PresenterView({ session, createChannel }: PresenterViewProps) {
   const link = useShow(session, createChannel)
-  const { phase, show, lost, frames, send, request } = link
+  const { phase, show, lost, frames, wheelStatus, send, request } = link
   const [now, setNow] = useState(() => performance.now())
   const [sizeIndex, setSizeIndex] = useState(storedSizeIndex)
 
@@ -175,6 +175,16 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
         <section className={styles.current} aria-label={t.presenterView.current}>
           <h2 className={styles.label}>{t.presenterView.current}</h2>
           <Preview which={t.presenterView.current} index={index} page={state.ended ? undefined : page} frames={frames} request={request} testId="view-current" empty={t.presenterView.endOfShow} />
+          {!state.ended && page.wheels?.length ? (
+            <div className={styles.wheels}>
+              {page.wheels.map((wheel) => (
+                <button key={wheel.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} onClick={() => send({ action: 'spin-wheel', pageId: page.id, wheelId: wheel.id })}>
+                  {t.wheel.spin}: {wheel.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <output role="status" className={styles.wheelStatus}>{!state.ended && wheelStatus?.pageId === page.id ? wheelStatus.text : ''}</output>
           <div className={styles.timer} data-testid="view-timer">
             <div className={styles.bar} aria-hidden="true">
               <span style={{ transform: `scaleX(${clock.kind === 'running' ? clock.progress : 0})` }} />

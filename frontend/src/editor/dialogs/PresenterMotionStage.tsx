@@ -8,7 +8,7 @@
  * While the next page is being prepared the page that is left stays up (a transition needs it); without a transition
  * the stage shows the quiet placeholder, never the page before it, as in the plain stage.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import type { DocPage, DoryDocument } from '@/types/document'
 import { type FrameInteractions, type FrameRenderer } from '../animation/frameRenderer'
 import { sampleTransition } from '../animation/sampler'
@@ -41,6 +41,12 @@ interface MotionStageProps {
   onPointerDown: (e: React.PointerEvent) => void
   onPointerUp: (e: React.PointerEvent) => void
   children?: React.ReactNode
+  spinRef: Ref<MotionStageHandle>
+  onWheelStatus: (pageId: string, text: string) => void
+}
+
+export interface MotionStageHandle {
+  spin(pageId: string, wheelId: string): boolean
 }
 
 function surface(width: number, height: number): HTMLCanvasElement {
@@ -65,7 +71,7 @@ function onStage(source: CanvasImageSource, css: Rect, stage: Size, dpr: number)
 /** Whether the show goes from `from` to `to` as a forward step even though `to` is the earlier page (the end of a loop). */
 const wraps = (loop: boolean, from: number, to: number, count: number): boolean => loop && from === count - 1 && to === 0
 
-export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerDown, onPointerUp, children }: MotionStageProps) {
+export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerDown, onPointerUp, children, spinRef, onWheelStatus }: MotionStageProps) {
   const [ref, size] = useElementSize<HTMLDivElement>()
   const [settled, setSettled] = useState<Size>(NO_SIZE)
   const [readyIndex, setReadyIndex] = useState<number | null>(null)
@@ -238,10 +244,21 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
     const pageSize = getPageSize(doc, page.id)
     return interactive.at((event.clientX - rect.left) / rect.width * pageSize.width, (event.clientY - rect.top) / rect.height * pageSize.height, frameTime.current)
   }
-  const spin = (id: string): void => {
+  const spin = (id: string): boolean => {
+    if (!interactive || !ready || overlayLive.current || !interactive.wheels.some((wheel) => wheel.id === id)) return false
     setWheelStatus(t.wheel.spinning)
-    if (interactive?.spin(id, plan.reduced, (text) => setWheelStatus(`${t.wheel.winner}: ${text}`))) wakeFrame.current?.()
+    onWheelStatus(page.id, t.wheel.spinning)
+    if (!interactive.spin(id, plan.reduced, (text) => {
+      const result = `${t.wheel.winner}: ${text}`
+      setWheelStatus(result)
+      onWheelStatus(page.id, result)
+    })) return interactive.spinning
+    wakeFrame.current?.()
+    return true
   }
+  useImperativeHandle(spinRef, () => ({
+    spin: (pageId, wheelId) => pageId === page.id && spin(wheelId),
+  }))
   return (
     <div ref={ref} className={styles.stage} data-testid="present-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
       <div

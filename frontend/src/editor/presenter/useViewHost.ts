@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type DocPage, type DoryDocument, MAX_DIMENSION_PX } from '@/types/document'
 import { getPageSize } from '../engine/pageSizes'
 import { useLatest } from '../hooks/useLatest'
@@ -9,6 +9,7 @@ import type { SlideshowAction, SlideshowState } from './machine'
 import { pageNotes } from './pageProps'
 import { NOTES_MAX_LENGTH } from './timing'
 import { t } from '../strings'
+import { wheelDocuments } from '../dynamic/interactive/wheel/model'
 
 /** How often the state is re-sent while a presenter view is connected, so its clocks stay true. */
 const HEARTBEAT_MS = 1000
@@ -23,6 +24,7 @@ export interface ViewHostOptions {
   state: SlideshowState
   dispatch: (action: SlideshowAction) => void
   onExit: () => void
+  onSpinWheel: (pageId: string, wheelId: string) => boolean
   /** Renders the small pictures the view shows. Separate from the stage's cache: different sizes. */
   previews: FrameCache
   /** Tests stand in for BroadcastChannel. */
@@ -34,6 +36,7 @@ export interface ViewHost {
   supported: boolean
   /** A presenter view has said hello and has not left. */
   connected: boolean
+  wheelStatus: (pageId: string, text: string) => void
 }
 
 export function previewsOf(doc: DoryDocument, durations: readonly (number | null)[]): PagePreview[] {
@@ -47,11 +50,15 @@ export function previewsOf(doc: DoryDocument, durations: readonly (number | null
       durationSec: durations[index] ?? null,
       width: Math.min(MAX_DIMENSION_PX, size.width),
       height: Math.min(MAX_DIMENSION_PX, size.height),
+      wheels: wheelDocuments(page.objects)
+        .filter((wheel) => wheel.id.length > 0 && wheel.id.length <= 64)
+        .slice(0, 100)
+        .map((wheel) => ({ id: wheel.id, label: (wheel.name || t.wheel.name).slice(0, 200) })),
     }
   })
 }
 
-function actionOf(command: ViewCommand): SlideshowAction | 'exit' {
+function actionOf(command: Exclude<ViewCommand, { action: 'spin-wheel' }>): SlideshowAction | 'exit' {
   switch (command.action) {
     case 'next':
     case 'prev':
@@ -102,6 +109,13 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
           opened.send({ kind: 'init', title: o.title.slice(0, 300) || t.untitled, theme: currentTheme(), pages: previewsRef.current, state: o.state })
           break
         case 'command': {
+          if (message.command.action === 'spin-wheel') {
+            const { pageId, wheelId } = message.command
+            if (!o.state.ended && !o.state.blackout && o.doc.pages[o.state.index]?.id === pageId && !o.onSpinWheel(pageId, wheelId)) {
+              opened.send({ kind: 'wheel-status', pageId, text: t.presenter.preparing })
+            }
+            break
+          }
           const action = actionOf(message.command)
           if (action === 'exit') o.onExit()
           else o.dispatch(action)
@@ -140,7 +154,11 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
     return () => window.clearInterval(timer)
   }, [connected, latest])
 
-  return { supported, connected }
+  const wheelStatus = useCallback((pageId: string, text: string) => {
+    linkRef.current?.send({ kind: 'wheel-status', pageId, text })
+  }, [])
+
+  return { supported, connected, wheelStatus }
 }
 
 async function sendFrame(link: PresenterLink, cache: FrameCache, page: DocPage | undefined, width: number): Promise<void> {
