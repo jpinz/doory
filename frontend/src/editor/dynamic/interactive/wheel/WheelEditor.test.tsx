@@ -32,7 +32,10 @@ describe('wheel slice controls', () => {
     await userEvent.clear(first.getByLabelText(t.wheel.content))
     expect(screen.getByRole('button', { name: t.wheel.apply })).toBeDisabled()
     await userEvent.type(first.getByLabelText(t.wheel.content), 'Coffee')
-    fireEvent.change(first.getByLabelText(t.wheel.color), { target: { value: '#123456' } })
+    await userEvent.click(first.getByRole('button', { name: t.wheel.color }))
+    const picker = within(screen.getByRole('dialog', { name: t.wheel.color }))
+    fireEvent.change(picker.getByRole('textbox', { name: t.picker.hexColor }), { target: { value: '#123456' } })
+    await userEvent.keyboard('{Escape}')
     fireEvent.change(first.getByLabelText(`${t.wheel.percentage} (%)`), { target: { value: '10' } })
     expect(screen.getByRole('button', { name: t.wheel.apply })).toBeDisabled()
     expect(apply).not.toHaveBeenCalled()
@@ -41,6 +44,25 @@ describe('wheel slice controls', () => {
     await userEvent.click(screen.getByRole('button', { name: t.wheel.apply }))
     expect(apply).toHaveBeenCalledWith({ slices: expect.arrayContaining([expect.objectContaining({ text: 'Coffee', color: '#123456', percentage: 10 })]) })
     expect(close).toHaveBeenCalledOnce()
+  })
+
+  it('offers document colors in the shared picker without transparency and keeps slice colors as drafts', async () => {
+    const { apply, close } = await open()
+    const slices = screen.getAllByRole('group')
+    await userEvent.click(within(slices[0]).getByRole('button', { name: t.wheel.color }))
+    const picker = within(screen.getByRole('dialog', { name: t.wheel.color }))
+    expect(picker.getByRole('slider', { name: t.picker.area })).toBeInTheDocument()
+    expect(picker.queryByLabelText(t.picker.alpha)).not.toBeInTheDocument()
+    const swatch = within(picker.getByRole('group', { name: t.picker.documentColors })).getAllByRole('button')[0]
+    const color = swatch.getAttribute('title')
+    await userEvent.click(swatch)
+    expect(picker.getByRole('textbox', { name: t.picker.hexColor })).toHaveValue(color)
+    expect(apply).not.toHaveBeenCalled()
+    expect(close).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(screen.getByRole('button', { name: t.wheel.apply }))
+    expect(apply.mock.calls[0][0].slices[0].color).toBe(color)
+    expect(apply.mock.calls[0][0].slices[1].color).toBe(defaultWheel().slices[1].color)
   })
 
   it('adds and removes slices, offers equal percentages, and requires at least two slices', async () => {

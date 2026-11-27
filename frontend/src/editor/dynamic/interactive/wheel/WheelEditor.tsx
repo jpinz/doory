@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { newId } from '@/lib/document'
 import { useEditor } from '../../../context'
 import { t } from '../../../strings'
+import { ColorButton } from '../../../ui/ColorButton'
 import { equalizeSlices, MAX_WHEEL_SLICES, readWheel, type WheelSlice, type WheelSpec, WHEEL_COLORS, wheelTotal } from './model'
 import ed from '../../../chrome/ed.module.css'
 import styles from './Wheel.module.css'
@@ -29,10 +30,12 @@ export function WheelEditor({ spec, close }: { spec: WheelSpec; close: () => voi
               <input className={ed.propInput} value={slice.text} maxLength={120} required onChange={(event) => update(slice.id, { text: event.target.value })} />
             </label>
             <div className={styles.properties}>
-              <label>
+              <div className={styles.color}>
                 <span className={ed.propLabel}>{t.wheel.color}</span>
-                <input type="color" value={slice.color} onChange={(event) => update(slice.id, { color: event.target.value })} />
-              </label>
+                <ColorButton label={t.wheel.color} value={{ type: 'solid', color: slice.color }} solidOnly allowAlpha={false} onChange={(fill) => {
+                  if (fill.type === 'solid') update(slice.id, { color: fill.color })
+                }} />
+              </div>
               <label>
                 <span className={ed.propLabel}>{t.wheel.percentage} (%)</span>
                 <input type="number" className={ed.propInput} value={Number.isNaN(slice.percentage) ? '' : slice.percentage} min="0" max="100" step="any" required onChange={(event) => update(slice.id, { percentage: event.target.valueAsNumber })} />

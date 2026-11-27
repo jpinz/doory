@@ -12,6 +12,8 @@ interface ColorButtonProps {
   value: FillSpec
   onChange: (fill: FillSpec) => void
   solidOnly?: boolean
+  /** Allow transparency in the solid-only picker. */
+  allowAlpha?: boolean
   /** `swatch` is a round chip; `bar` shows an icon with a colour underline (text colour). */
   variant?: 'swatch' | 'bar' | 'chip'
   icon?: ReactNode
@@ -23,7 +25,7 @@ interface ColorButtonProps {
 }
 
 /** Colour control: shows the current fill and opens the picker / gradient editor in a popover. */
-export function ColorButton({ label, value, onChange, solidOnly, variant = 'swatch', icon, extraSwatches, none, disabled, className }: ColorButtonProps) {
+export function ColorButton({ label, value, onChange, solidOnly, allowAlpha, variant = 'swatch', icon, extraSwatches, none, disabled, className }: ColorButtonProps) {
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const bg = fillCssPreview(value)
@@ -51,7 +53,7 @@ export function ColorButton({ label, value, onChange, solidOnly, variant = 'swat
         </button>
       </Tooltip>
       <Popover open={open} onClose={() => setOpen(false)} anchorRef={ref} label={label} placement="bottom-start">
-        {solidOnly && value.type === 'solid' ? <ColorPicker value={value.color} onChange={(color) => onChange({ type: 'solid', color })} extraSwatches={extraSwatches} /> : <FillEditor value={value} onChange={onChange} solidOnly={solidOnly} extraSwatches={extraSwatches} />}
+        {solidOnly && value.type === 'solid' ? <ColorPicker value={value.color} onChange={(color) => onChange({ type: 'solid', color })} allowAlpha={allowAlpha} extraSwatches={extraSwatches} /> : <FillEditor value={value} onChange={onChange} solidOnly={solidOnly} extraSwatches={extraSwatches} />}
       </Popover>
     </>
   )
