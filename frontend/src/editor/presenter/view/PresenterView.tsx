@@ -7,7 +7,7 @@
 import { ChevronLeft, ChevronRight, MonitorOff, Minus, Pause, Play, Plus, Repeat, RotateCcw, Square } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { t } from '../../strings'
-import type { ChannelLike, PagePreview } from '../channel'
+import type { ChannelLike, PagePreview, PreviewBox } from '../channel'
 import { fitContain } from '../fit'
 import { actionForKey, isActivationKey } from '../keymap'
 import { formatClock } from '../timing'
@@ -39,10 +39,12 @@ interface PreviewProps {
   testId: string
   /** Shown instead of a page (the end of the presentation). */
   empty?: string
+  /** Objects to outline on the picture: the wheels and dice the speaker is about to use, or just used. */
+  marks?: readonly PreviewBox[]
 }
 
 /** One page picture, letterboxed in its box by the page's own size; asks the audience window for the picture it needs. */
-function Preview({ which, index, page, frames, request, testId, empty }: PreviewProps) {
+function Preview({ which, index, page, frames, request, testId, empty, marks }: PreviewProps) {
   const [ref, size] = useElementSize<HTMLDivElement>()
   const dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1
   const fit = page ? fitContain(size, page) : null
@@ -57,6 +59,9 @@ function Preview({ which, index, page, frames, request, testId, empty }: Preview
       {page && fit && fit.width > 0 ? (
         <div className={styles.picture} style={{ left: fit.x, top: fit.y, width: fit.width, height: fit.height }} data-testid={`${testId}-picture`}>
           {frame ? <img src={frame.url} alt={t.presenterView.previewAlt(which, index + 1, page.name)} draggable={false} /> : <span className={styles.loading}>{t.presenterView.previewLoading}</span>}
+          {marks?.map((box, i) => (
+            <span key={i} className={styles.mark} style={{ left: `${box.x * 100}%`, top: `${box.y * 100}%`, width: `${box.w * 100}%`, height: `${box.h * 100}%` }} data-testid={`${testId}-mark`} aria-hidden="true" />
+          ))}
         </div>
       ) : (
         <p className={styles.endOfShow}>{empty}</p>
@@ -74,9 +79,12 @@ interface PresenterViewProps {
 
 export function PresenterView({ session, createChannel }: PresenterViewProps) {
   const link = useShow(session, createChannel)
-  const { phase, show, lost, frames, wheelStatus, send, request } = link
+  const { phase, show, lost, frames, interactiveStatus, send, request } = link
   const [now, setNow] = useState(() => performance.now())
   const [sizeIndex, setSizeIndex] = useState(storedSizeIndex)
+  // Outlined in the current picture: what a button is pointed at or focused on, else what was last rolled or spun.
+  const [aimed, setAimed] = useState<readonly string[] | null>(null)
+  const [used, setUsed] = useState<{ pageId: string; ids: readonly string[] } | null>(null)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(performance.now()), VIEW_TICK_MS)
@@ -151,6 +159,18 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
   const clock = pageClock(config, state)
   const running = state.autoAdvance && !state.paused
   const finished = phase === 'ended'
+  const markedIds = aimed ?? (used?.pageId === page.id ? used.ids : [])
+  const marks = [...(page.wheels ?? []), ...(page.dice ?? [])].flatMap((item) => (item.box && markedIds.includes(item.id) ? [item.box] : []))
+  const use = (ids: readonly string[], command: Parameters<typeof send>[0]): void => {
+    setUsed({ pageId: page.id, ids })
+    send(command)
+  }
+  const aim = (ids: readonly string[]) => ({
+    onPointerEnter: () => setAimed(ids),
+    onPointerLeave: () => setAimed(null),
+    onFocus: () => setAimed(ids),
+    onBlur: () => setAimed(null),
+  })
 
   return (
     <div className={styles.view} data-testid="view-root">
@@ -174,17 +194,27 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
       <main className={styles.grid}>
         <section className={styles.current} aria-label={t.presenterView.current}>
           <h2 className={styles.label}>{t.presenterView.current}</h2>
-          <Preview which={t.presenterView.current} index={index} page={state.ended ? undefined : page} frames={frames} request={request} testId="view-current" empty={t.presenterView.endOfShow} />
-          {!state.ended && page.wheels?.length ? (
-            <div className={styles.wheels}>
-              {page.wheels.map((wheel) => (
-                <button key={wheel.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} onClick={() => send({ action: 'spin-wheel', pageId: page.id, wheelId: wheel.id })}>
+          <Preview which={t.presenterView.current} index={index} page={state.ended ? undefined : page} frames={frames} request={request} testId="view-current" empty={t.presenterView.endOfShow} marks={state.ended ? undefined : marks} />
+          {!state.ended && (page.wheels?.length || page.dice?.length) ? (
+            <div className={styles.interactives}>
+              {page.wheels?.map((wheel) => (
+                <button key={wheel.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim([wheel.id])} onClick={() => use([wheel.id], { action: 'spin-wheel', pageId: page.id, wheelId: wheel.id })}>
                   {t.wheel.spin}: {wheel.label}
+                </button>
+              ))}
+              {page.dice && page.dice.length > 1 ? (
+                <button type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim(page.dice.map((die) => die.id))} onClick={() => use(page.dice!.map((die) => die.id), { action: 'roll-dice', pageId: page.id, dieIds: page.dice!.map((die) => die.id) })}>
+                  {t.dice.rollAll}
+                </button>
+              ) : null}
+              {page.dice?.map((die) => (
+                <button key={die.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim([die.id])} onClick={() => use([die.id], { action: 'roll-dice', pageId: page.id, dieIds: [die.id] })}>
+                  {t.dice.roll}: {die.label}
                 </button>
               ))}
             </div>
           ) : null}
-          <output role="status" className={styles.wheelStatus}>{!state.ended && wheelStatus?.pageId === page.id ? wheelStatus.text : ''}</output>
+          <output role="status" className={styles.interactiveStatus}>{!state.ended && interactiveStatus?.pageId === page.id ? interactiveStatus.text : ''}</output>
           <div className={styles.timer} data-testid="view-timer">
             <div className={styles.bar} aria-hidden="true">
               <span style={{ transform: `scaleX(${clock.kind === 'running' ? clock.progress : 0})` }} />

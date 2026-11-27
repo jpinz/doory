@@ -19,6 +19,7 @@ import { getPageSize } from '../engine/pageSizes'
 import { DURATION_MAX_SEC } from './timing'
 import { elementSources } from '../clips/elementSource'
 import { wheelDocuments } from '../dynamic/interactive/wheel/model'
+import { dieDocuments } from '../dynamic/interactive/dice/model'
 
 /** The fade that stands in for every transition when the viewer asked for reduced motion. */
 export const REDUCED_TRANSITION: PageTransition = { preset: 'fade', durationMs: 250, easing: 'ease-in-out' }
@@ -55,7 +56,7 @@ export function planMotion(doc: Pick<DoryDocument, 'pages'>, reduced: boolean): 
     const wanted = playableTransition(original.transition)
     return { page, transition: wanted ? (reduced ? REDUCED_TRANSITION : wanted) : null, timing: pageTiming(page) }
   })
-  return { pages, reduced, moves: pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0) }
+  return { pages, reduced, moves: pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0 || dieDocuments(p.page.objects).length > 0) }
 }
 
 /**

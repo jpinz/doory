@@ -87,11 +87,19 @@ describe('editor chrome', () => {
     engine = await mount()
     await userEvent.click(screen.getByRole('button', { name: t.rail.dynamic }))
     const panel = await screen.findByRole('complementary', { name: t.rail.dynamic })
-    expect(await within(panel).findByRole('heading', { name: t.wheel.category })).toBeInTheDocument()
+    expect(await within(panel).findByRole('heading', { name: t.interactive.category })).toBeInTheDocument()
     await userEvent.click(within(panel).getByRole('button', { name: t.wheel.add }))
     await waitFor(() => expect(engine!.state.selection.kinds).toEqual(['wheel']))
     expect(objectCount(engine)).toBe(1)
     expect(panel).toBeInTheDocument()
+  })
+
+  it('adds a die from the Dynamic tool', async () => {
+    engine = await mount()
+    await userEvent.click(screen.getByRole('button', { name: t.rail.dynamic }))
+    const panel = await screen.findByRole('complementary', { name: t.rail.dynamic })
+    await userEvent.click(within(panel).getByRole('button', { name: t.dice.add }))
+    await waitFor(() => expect(engine!.state.selection.kinds).toEqual(['die']))
   })
 
   it('keeps a tool open beside the rail while things are added from it, until its entry is pressed again', async () => {

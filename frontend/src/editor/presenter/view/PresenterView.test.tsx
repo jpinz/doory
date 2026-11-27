@@ -169,13 +169,56 @@ describe('PresenterView', () => {
     }))
     await user.click(await screen.findByRole('button', { name: `${t.wheel.spin}: Bonus` }))
     expect(a.commands()).toContainEqual({ action: 'spin-wheel', pageId: 'a', wheelId: 'w2' })
-    act(() => a.show.send({ kind: 'wheel-status', pageId: 'a', text: 'Winner: Red' }))
+    act(() => a.show.send({ kind: 'interactive-status', pageId: 'a', text: 'Winner: Red' }))
     expect(screen.getByText('Winner: Red')).toBeInTheDocument()
     act(() => a.show.send({ kind: 'state', state: stateAt({ blackout: true }) }))
     expect(screen.getByRole('button', { name: `${t.wheel.spin}: Prize` })).toBeDisabled()
     act(() => a.show.send({ kind: 'state', state: stateAt({ index: 1 }) }))
     expect(screen.queryByRole('button', { name: `${t.wheel.spin}: Prize` })).toBeNull()
     expect(screen.queryByText('Winner: Red')).toBeNull()
+  })
+
+  it('rolls the current page dice one at a time or all together', async () => {
+    const a = audience()
+    const user = userEvent.setup()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.show.send({
+      kind: 'init', title: 'Deck', theme: null,
+      pages: [{ ...pages[0], dice: [{ id: 'd1', label: 'Red' }, { id: 'd2', label: 'Blue' }] }, { ...pages[1], dice: [{ id: 'd3', label: 'Solo' }] }],
+      state: stateAt(),
+    }))
+    await user.click(await screen.findByRole('button', { name: `${t.dice.roll}: Blue` }))
+    await user.click(screen.getByRole('button', { name: t.dice.rollAll }))
+    expect(a.commands().slice(-2)).toEqual([
+      { action: 'roll-dice', pageId: 'a', dieIds: ['d2'] },
+      { action: 'roll-dice', pageId: 'a', dieIds: ['d1', 'd2'] },
+    ])
+    act(() => a.show.send({ kind: 'interactive-status', pageId: 'a', text: 'Result: 2, 5 (Total: 7)' }))
+    expect(screen.getByText('Result: 2, 5 (Total: 7)')).toBeInTheDocument()
+    act(() => a.show.send({ kind: 'state', state: stateAt({ index: 1 }) }))
+    expect(screen.getByRole('button', { name: `${t.dice.roll}: Solo` })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: t.dice.rollAll })).toBeNull()
+  })
+
+  it('outlines the dice a button points at, and the dice last rolled', async () => {
+    const a = audience()
+    const user = userEvent.setup()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    const dice = [{ id: 'd1', label: 'Red', box: { x: 0.1, y: 0.2, w: 0.25, h: 0.5 } }, { id: 'd2', label: 'Blue', box: { x: 0.6, y: 0.2, w: 0.25, h: 0.5 } }]
+    act(() => a.show.send({ kind: 'init', title: 'Deck', theme: null, pages: [{ ...pages[0], dice }, pages[1]], state: stateAt() }))
+    const marks = () => screen.queryAllByTestId('view-current-mark')
+    await screen.findByTestId('view-root')
+    expect(marks()).toHaveLength(0)
+    await user.hover(screen.getByRole('button', { name: t.dice.rollAll }))
+    expect(marks()).toHaveLength(2)
+    await user.hover(screen.getByRole('button', { name: `${t.dice.roll}: Blue` }))
+    expect(marks()).toHaveLength(1)
+    expect(marks()[0]).toHaveStyle({ left: '60%', top: '20%', width: '25%', height: '50%' })
+    await user.click(screen.getByRole('button', { name: `${t.dice.roll}: Blue` }))
+    await user.unhover(screen.getByRole('button', { name: `${t.dice.roll}: Blue` }))
+    expect(marks()).toHaveLength(1)
+    act(() => a.show.send({ kind: 'state', state: stateAt({ index: 1 }) }))
+    expect(marks()).toHaveLength(0)
   })
 
   it('changes the notes text size and remembers it', async () => {

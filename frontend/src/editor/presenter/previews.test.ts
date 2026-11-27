@@ -3,6 +3,7 @@ import type { DocPage, DoryDocument } from '@/types/document'
 import { parseMessage } from './channel'
 import { initialState } from './machine'
 import { previewsOf } from './useViewHost'
+import { defaultDie } from '../dynamic/interactive/dice/model'
 import { defaultWheel } from '../dynamic/interactive/wheel/model'
 
 const page = (id: string, extra: Partial<DocPage> = {}): DocPage => ({ id, background: { type: 'solid', color: '#ffffff' }, objects: [], ...extra })
@@ -12,9 +13,9 @@ describe('previewsOf', () => {
   it('describes each page by its own size, name, notes and resolved time', () => {
     const doc = docOf(page('a', { name: ' Intro ', notes: 'Hello' }), page('b', { width: 1080, height: 1080 }), page('c', { width: 1080, height: 1920 }))
     expect(previewsOf(doc, [3, null, 8])).toEqual([
-      { id: 'a', name: 'Intro', notes: 'Hello', durationSec: 3, width: 1920, height: 1080, wheels: [] },
-      { id: 'b', name: '', notes: '', durationSec: null, width: 1080, height: 1080, wheels: [] },
-      { id: 'c', name: '', notes: '', durationSec: 8, width: 1080, height: 1920, wheels: [] },
+      { id: 'a', name: 'Intro', notes: 'Hello', durationSec: 3, width: 1920, height: 1080, wheels: [], dice: [] },
+      { id: 'b', name: '', notes: '', durationSec: null, width: 1080, height: 1080, wheels: [], dice: [] },
+      { id: 'c', name: '', notes: '', durationSec: 8, width: 1080, height: 1920, wheels: [], dice: [] },
     ])
   })
 
@@ -22,6 +23,21 @@ describe('previewsOf', () => {
     const wheel = { id: 'w1', type: 'dorywheel', name: 'Prize', wheel: defaultWheel() }
     const doc = docOf(page('a', { objects: [{ id: 'group', type: 'group', objects: [wheel] }, { ...wheel, id: 'hidden', visible: false }] }), page('b'))
     expect(previewsOf(doc, [null, null]).map((p) => p.wheels)).toEqual([[{ id: 'w1', label: 'Prize' }], []])
+  })
+
+  it('describes visible dice on each page, named or not', () => {
+    const die = { id: 'd1', type: 'dorydie', die: defaultDie() }
+    const doc = docOf(page('a', { objects: [{ id: 'group', type: 'group', objects: [{ ...die, name: 'Red' }] }, { ...die, id: 'd2' }, { ...die, id: 'hidden', visible: false }] }))
+    expect(previewsOf(doc, [null])[0].dice).toEqual([{ id: 'd1', label: 'Red' }, { id: 'd2', label: 'Die' }])
+  })
+
+  it('numbers dice that share a name, and says where each sits on the page', () => {
+    const die = { type: 'dorydie', die: defaultDie(), width: 200, height: 200, originX: 'left', originY: 'top', top: 108 }
+    const doc = docOf(page('a', { objects: [{ ...die, id: 'd1', name: 'Die', left: 192 }, { ...die, id: 'd2', left: 960 }, { ...die, id: 'd3', name: 'Red', left: 0 }] }))
+    const dice = previewsOf(doc, [null])[0].dice!
+    expect(dice.map((d) => d.label)).toEqual(['Die 1', 'Die 2', 'Red'])
+    expect(dice[1].box!.x).toBeCloseTo(0.5)
+    expect(dice[1].box!.y).toBeCloseTo(0.1)
   })
 
   it('cuts what a hand-made document holds to what the channel carries, so one odd page cannot stop the view', () => {

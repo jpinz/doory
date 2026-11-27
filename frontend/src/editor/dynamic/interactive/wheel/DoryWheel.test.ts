@@ -2,7 +2,8 @@ import { Group, Point, StaticCanvas } from 'fabric'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defaultWheel } from './model'
 import { deserializeObjects, serializeObject } from '../../../engine/serialization'
-import { DoryWheel, wheelAt } from './DoryWheel'
+import { DoryWheel } from './DoryWheel'
+import { interactiveAt } from '../at'
 import { createRect } from '../../../engine/objects/factories'
 
 afterEach(() => {
@@ -14,13 +15,13 @@ describe('DoryWheel', () => {
   it('round-trips slices and transforms, including when nested in a group', async () => {
     const wheel = new DoryWheel({ left: 200, top: 200, angle: 23, scaleX: 0.7, wheel: defaultWheel() })
     const group = new Group([wheel])
-    expect(wheelAt([group], wheel.getCenterPoint())).toBe(wheel)
+    expect(interactiveAt([group], wheel.getCenterPoint())).toBe(wheel)
     const json = serializeObject(group)
     const [restored] = await deserializeObjects([json], { resolveSrc: async (s) => s, ensureFonts: async () => undefined })
     expect(restored).toBeInstanceOf(Group)
     expect((restored as Group).getObjects()[0]).toBeInstanceOf(DoryWheel)
     const restoredWheel = (restored as Group).getObjects()[0]
-    expect(wheelAt([restored], restoredWheel.getCenterPoint())).toBe(restoredWheel)
+    expect(interactiveAt([restored], restoredWheel.getCenterPoint())).toBe(restoredWheel)
     expect(serializeObject(restored)).toEqual(json)
     group.dispose()
     restored.dispose()
@@ -59,11 +60,11 @@ describe('DoryWheel', () => {
     const wheel = new DoryWheel({ originX: 'center', originY: 'center', left: 200, top: 200, angle: 30, scaleX: 0.5, wheel: defaultWheel() })
     wheel.setCoords()
     const cover = createRect({ x: 200, y: 200 }, 80)
-    expect(wheelAt([wheel], new Point(200, 200))).toBe(wheel)
-    expect(wheelAt([wheel, cover], new Point(200, 200))).toBeNull()
+    expect(interactiveAt([wheel], new Point(200, 200))).toBe(wheel)
+    expect(interactiveAt([wheel, cover], new Point(200, 200))).toBeNull()
     cover.visible = false
-    expect(wheelAt([wheel, cover], new Point(200, 200))).toBe(wheel)
-    expect(wheelAt([wheel], new Point(500, 500))).toBeNull()
+    expect(interactiveAt([wheel, cover], new Point(200, 200))).toBe(wheel)
+    expect(interactiveAt([wheel], new Point(500, 500))).toBeNull()
     wheel.dispose()
     cover.dispose()
   })

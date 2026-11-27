@@ -6,7 +6,7 @@ import { t } from '../../../strings'
 import { ColorButton } from '../../../ui/ColorButton'
 import { equalizeSlices, MAX_WHEEL_SLICES, readWheel, type WheelSlice, type WheelSpec, WHEEL_COLORS, wheelTotal } from './model'
 import ed from '../../../chrome/ed.module.css'
-import styles from './Wheel.module.css'
+import styles from '../Interactive.module.css'
 
 export function WheelEditor({ spec, close }: { spec: WheelSpec; close: () => void }) {
   const editor = useEditor()
@@ -21,9 +21,9 @@ export function WheelEditor({ spec, close }: { spec: WheelSpec; close: () => voi
       if (valid && editor.wheels.set({ slices })) close()
     }}>
       <p className={styles.hint}>{t.wheel.hint}</p>
-      <div className={styles.slices}>
+      <div className={styles.entries}>
         {slices.map((slice, index) => (
-          <fieldset key={slice.id} className={styles.slice}>
+          <fieldset key={slice.id} className={styles.entry}>
             <legend>{t.wheel.slice} {index + 1}</legend>
             <label>
               <span className={ed.propLabel}>{t.wheel.content}</span>

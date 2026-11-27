@@ -20,6 +20,8 @@ import { readImageGridSpec } from '../../grids/model'
 import { reconcileImageGridChildren } from './imageGrid'
 import '../../dynamic/interactive/wheel/DoryWheel'
 import { readWheel } from '../../dynamic/interactive/wheel/model'
+import '../../dynamic/interactive/dice/DoryDie'
+import { readDie } from '../../dynamic/interactive/dice/model'
 
 
 const TEXT_TYPES = new Set(['textbox', 'itext', 'text'])
@@ -48,6 +50,18 @@ function hydrateImage(obj: FabricObject): void {
 }
 
 export function registerBuiltinKinds(): void {
+  registerObjectKind({
+    id: 'die',
+    label: t.dice.name,
+    priority: 110,
+    matches: (o) => typeOf(o) === 'dorydie',
+    extraProps: ['die'],
+    prepare(json) {
+      const spec = readDie(json.die)
+      if (spec) json.die = spec
+    },
+  })
+
   registerObjectKind({
     id: 'wheel',
     label: t.wheel.name,

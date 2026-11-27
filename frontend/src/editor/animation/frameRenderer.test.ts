@@ -8,6 +8,7 @@ import { transitionPresets } from './presets'
 import { sampleTransition } from './sampler'
 import { drawTransition } from './transitionRenderer'
 import { defaultWheel } from '../dynamic/interactive/wheel/model'
+import { defaultDie } from '../dynamic/interactive/dice/model'
 
 const ctx: LoadContext = { resolveSrc: async (s) => s, ensureFonts: async () => undefined }
 const SIZE = { width: 240, height: 160 }
@@ -56,6 +57,42 @@ const BLUE = [0, 0, 255] as const
 const WHITE = [255, 255, 255] as const
 
 describe('createFrameRenderer', () => {
+  it('uses the same controls and topmost hit testing for a wheel and die', async () => {
+    const wheel: DocObject = { id: 'wheel', type: 'dorywheel', left: 120, top: 80, width: 140, height: 140, originX: 'center', originY: 'center', wheel: defaultWheel() }
+    const die: DocObject = { id: 'die', type: 'dorydie', left: 120, top: 80, width: 100, height: 100, originX: 'center', originY: 'center', die: defaultDie() }
+    const renderer = await createFrameRenderer(page([wheel, die]), SIZE, ctx, { multiplier: 1, interactive: true })
+    expect(renderer.interactive?.controls.map(({ id, kind }) => ({ id, kind }))).toEqual([{ id: 'wheel', kind: 'wheel' }, { id: 'die', kind: 'die' }])
+    expect(renderer.interactive?.at(120, 80, 0)).toBe('die')
+    expect(renderer.interactive?.at(180, 80, 0)).toBe('wheel')
+    const done = vi.fn()
+    expect(renderer.interactive?.activate('wheel', true, done)).toBe(true)
+    expect(renderer.interactive?.activate('die', true, done)).toBe(true)
+    expect(renderer.interactive?.activate('missing', true, done)).toBe(false)
+    expect(done).toHaveBeenCalledTimes(2)
+    renderer.dispose()
+  })
+
+  it('rolls presentation dice locally without changing the saved design or exports', async () => {
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => { (array as Uint32Array)[0] = 4; return array })
+    const die: DocObject = { id: 'die', type: 'dorydie', left: 120, top: 80, width: 140, height: 140, originX: 'center', originY: 'center', die: defaultDie() }
+    const p = page([die, rect('cover', '#0000ff', 120, 80)])
+    const original = JSON.stringify(p)
+    const stillBefore = pixels(await renderPageToCanvas(p, SIZE, ctx, { multiplier: 1 })).slice()
+    const renderer = await createFrameRenderer(p, SIZE, ctx, { multiplier: 1, interactive: true })
+    expect(renderer.interactive?.at(120, 80, 0)).toBeNull()
+    expect(renderer.interactive?.at(165, 80, 0)).toBe('die')
+    const before = pixels(renderer.render(0)).slice()
+    const done = vi.fn()
+    expect(renderer.interactive?.activate('die', true, done)).toBe(true)
+    expect(done).toHaveBeenCalledWith('5', 5)
+    expect(pixels(renderer.render(0))).not.toEqual(before)
+    expect(pixels(await renderPageToCanvas(p, SIZE, ctx, { multiplier: 1 }))).toEqual(stillBefore)
+    expect(JSON.stringify(p)).toBe(original)
+    renderer.dispose()
+    expect(renderer.interactive?.activate('die', true, done)).toBe(false)
+    vi.restoreAllMocks()
+  })
+
   it('spins a presentation wheel locally, preserves z-order and keeps exports static', async () => {
     const wheel: DocObject = { id: 'wheel', type: 'dorywheel', left: 120, top: 80, width: 140, height: 140, originX: 'center', originY: 'center', wheel: defaultWheel() }
     const p = page([wheel, rect('cover', '#0000ff', 120, 80)])
@@ -66,16 +103,16 @@ describe('createFrameRenderer', () => {
     expect(renderer.interactive?.at(165, 80, 0)).toBe('wheel')
     const before = pixels(renderer.render(0)).slice()
     const done = vi.fn()
-    expect(renderer.interactive?.spin('wheel', true, done)).toBe(true)
+    expect(renderer.interactive?.activate('wheel', true, done)).toBe(true)
     expect(done).toHaveBeenCalledOnce()
-    expect(renderer.interactive?.spinning).toBe(false)
+    expect(renderer.interactive?.active).toBe(false)
     expect(pixels(renderer.render(0))).not.toEqual(before)
     expect(isColor(pixelAt(renderer.render(0), 120, 80), ...BLUE)).toBe(true)
     const still = await renderPageToCanvas(p, SIZE, ctx, { multiplier: 1 })
     expect(pixels(still)).toEqual(stillBefore)
     expect(JSON.stringify(p)).toBe(original)
     renderer.dispose()
-    expect(renderer.interactive?.spin('wheel', true, done)).toBe(false)
+    expect(renderer.interactive?.activate('wheel', true, done)).toBe(false)
   })
 
   it('does not hit a wheel before its enter animation, or once it has exited', async () => {

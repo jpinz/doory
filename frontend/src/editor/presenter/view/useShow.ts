@@ -21,7 +21,8 @@ export interface Show {
   lost: boolean
   /** Pictures received so far, per page id. */
   frames: ReadonlyMap<string, readonly ReceivedFrame[]>
-  wheelStatus: { pageId: string; text: string } | null
+  /** The latest wheel or dice result the show reported. */
+  interactiveStatus: { pageId: string; text: string } | null
   send(command: ViewCommand): void
   /** Asks for a picture of the page at that width unless it is already here or was asked for a moment ago. */
   request(pageId: string, width: number): void
@@ -43,7 +44,7 @@ export function useShow(session: string | null, createChannel?: (name: string) =
   const [show, setShow] = useState<ShowSnapshot | null>(null)
   const [lost, setLost] = useState(false)
   const [frames, setFrames] = useState<ReadonlyMap<string, readonly ReceivedFrame[]>>(() => new Map())
-  const [wheelStatus, setWheelStatus] = useState<{ pageId: string; text: string } | null>(null)
+  const [interactiveStatus, setInteractiveStatus] = useState<{ pageId: string; text: string } | null>(null)
   const linkRef = useRef<PresenterLink | null>(null)
   const lastSeen = useRef(0)
   const phaseRef = useRef(phase)
@@ -71,8 +72,8 @@ export function useShow(session: string | null, createChannel?: (name: string) =
         case 'state':
           setShow((cur) => (cur ? { ...cur, state: message.state, receivedAt: performance.now() } : cur))
           break
-        case 'wheel-status':
-          setWheelStatus({ pageId: message.pageId, text: message.text })
+        case 'interactive-status':
+          setInteractiveStatus({ pageId: message.pageId, text: message.text })
           break
         case 'frame': {
           const url = URL.createObjectURL(message.image)
@@ -127,5 +128,5 @@ export function useShow(session: string | null, createChannel?: (name: string) =
     [frames],
   )
 
-  return { phase: initial === 'connecting' ? phase : initial, show, lost, frames, wheelStatus, send, request }
+  return { phase: initial === 'connecting' ? phase : initial, show, lost, frames, interactiveStatus, send, request }
 }

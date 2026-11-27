@@ -6,7 +6,7 @@ import { useEditor, useEditorState } from '../context'
 import { gradientCss } from '../engine/objects/fills'
 import { backgroundToFill } from '../engine/objects/background'
 import { DurationChip } from '../presenter/DurationChip'
-import { WheelViewControls } from '../dynamic/interactive/wheel/WheelViewControls'
+import { PageInteractiveControls } from '../dynamic/interactive/PageInteractiveControls'
 import { t } from '../strings'
 import { IconButton } from '../ui/Button'
 import { Skeleton } from '../ui/Skeleton'
@@ -134,7 +134,7 @@ export const PageSlot = memo(function PageSlot({ page, index, total, width, heig
         {(loading || (!live && !snapshot)) && page.objects.length > 0 ? <Skeleton className={styles.skeleton} height="100%" width="100%" radius={0} /> : null}
         {page.objects.length === 0 && !loading ? <p className={styles.empty}>{t.workspace.emptyHint}</p> : null}
         <PresenceLayer pageId={page.id} zoom={zoom} />
-        {readOnly && live && !loading ? <WheelViewControls page={page} /> : null}
+        {readOnly && live && !loading ? <PageInteractiveControls page={page} /> : null}
       </div>
     </section>
   )

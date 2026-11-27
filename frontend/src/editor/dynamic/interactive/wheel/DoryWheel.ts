@@ -1,5 +1,6 @@
-import { classRegistry, FabricObject, Group, Point, util } from 'fabric'
-import { type WheelSpec, readWheel, sliceGeometry, wheelOutcome, wheelRandom, wheelTextColor, WHEEL_RADIUS, WHEEL_SIZE } from './model'
+import { classRegistry, FabricObject, Point, util } from 'fabric'
+import { interactiveTextColor } from '../color'
+import { type WheelSpec, readWheel, sliceGeometry, wheelOutcome, wheelRandom, WHEEL_RADIUS, WHEEL_SIZE } from './model'
 
 export class DoryWheel extends FabricObject {
   static override type = 'DoryWheel'
@@ -94,7 +95,7 @@ export class DoryWheel extends FabricObject {
       if (slice.percentage >= 3) {
         ctx.save()
         ctx.rotate((a + b) / 2)
-        ctx.fillStyle = wheelTextColor(slice.color)
+        ctx.fillStyle = interactiveTextColor(slice.color)
         ctx.font = '600 16px sans-serif'
         ctx.textAlign = 'right'
         ctx.textBaseline = 'middle'
@@ -131,7 +132,7 @@ export class DoryWheel extends FabricObject {
       if (slice.percentage <= 0) return ''
       const { path, angle } = sliceGeometry(start, slice.percentage)
       start += slice.percentage
-      const text = slice.percentage >= 3 ? `<text transform="rotate(${angle})" x="168" y="0" text-anchor="end" dominant-baseline="central" fill="${wheelTextColor(slice.color)}" font-family="sans-serif" font-size="16" font-weight="600" textLength="${Math.min(122, [...slice.text].length * 9)}" lengthAdjust="spacingAndGlyphs">${util.string.escapeXml(slice.text)}</text>` : ''
+      const text = slice.percentage >= 3 ? `<text transform="rotate(${angle})" x="168" y="0" text-anchor="end" dominant-baseline="central" fill="${interactiveTextColor(slice.color)}" font-family="sans-serif" font-size="16" font-weight="600" textLength="${Math.min(122, [...slice.text].length * 9)}" lengthAdjust="spacingAndGlyphs">${util.string.escapeXml(slice.text)}</text>` : ''
       return `<path d="${path}" fill="${slice.color}" stroke="#ffffff" stroke-width="2" />${text}`
     }).join('')
     return ['<g ', 'COMMON_PARTS', `><g transform="scale(${this.width / WHEEL_SIZE} ${this.height / WHEEL_SIZE})">${slices}<circle r="186" fill="none" stroke="#ffffff" stroke-width="4" /><circle r="24" fill="#ffffff" /><path d="M -12 -198 L 12 -198 L 0 -166 Z" fill="#2b1c17" /></g></g>`]
@@ -141,25 +142,6 @@ export class DoryWheel extends FabricObject {
     cancelAnimationFrame(this.raf)
     super.dispose()
   }
-}
-
-export function wheelObjects(objects: readonly FabricObject[]): DoryWheel[] {
-  return objects.flatMap((object) => {
-    if (!object.visible || object.opacity === 0) return []
-    return object instanceof DoryWheel ? [object] : object instanceof Group ? wheelObjects(object.getObjects()) : []
-  })
-}
-
-/** Do not spin a wheel through an object drawn in front of it. */
-export function wheelAt(objects: readonly FabricObject[], point: Point): DoryWheel | null {
-  for (let i = objects.length - 1; i >= 0; i--) {
-    const object = objects[i]
-    if (!object.visible || object.opacity === 0 || !object.containsPoint(point)) continue
-    if (object instanceof DoryWheel) return object
-    if (object instanceof Group) return wheelAt(object.getObjects(), point)
-    return null
-  }
-  return null
 }
 
 classRegistry.setClass(DoryWheel)

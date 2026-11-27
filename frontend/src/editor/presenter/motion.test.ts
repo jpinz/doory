@@ -29,6 +29,11 @@ describe('planMotion', () => {
     expect(planMotion({ pages: [page('a', [obj('x')]), page('b')] }, false).moves).toBe(false)
   })
 
+  it('uses the interactive stage for dice even with reduced motion', () => {
+    const die: DocObject = { id: 'd', type: 'dorydie', die: { kind: 'number', sides: 6 } }
+    expect(planMotion({ pages: [page('a', [die])] }, true).moves).toBe(true)
+  })
+
   it('plays a transition it does not know as none', () => {
     expect(planMotion(deck(), false).pages[2].transition).toBeNull()
   })

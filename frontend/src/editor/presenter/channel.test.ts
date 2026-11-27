@@ -51,7 +51,8 @@ describe('parseMessage', () => {
     expect(parseMessage(wrap({ kind: 'command', command: { action: 'goto', index: 2 } }, 'view'), 'show')).toMatchObject({ command: { action: 'goto', index: 2 } })
     expect(parseMessage(wrap({ kind: 'command', command: { action: 'toggle-pause' } }, 'view'), 'show')).toMatchObject({ command: { action: 'toggle-pause' } })
     expect(parseMessage(wrap({ kind: 'command', command: { action: 'spin-wheel', pageId: 'a', wheelId: 'w' } }, 'view'), 'show')).toMatchObject({ command: { action: 'spin-wheel', pageId: 'a', wheelId: 'w' } })
-    expect(parseMessage(wrap({ kind: 'wheel-status', pageId: 'a', text: 'Winner' }), 'view')).toMatchObject({ kind: 'wheel-status', text: 'Winner' })
+    expect(parseMessage(wrap({ kind: 'command', command: { action: 'roll-dice', pageId: 'a', dieIds: ['d1', 'd2'] } }, 'view'), 'show')).toMatchObject({ command: { action: 'roll-dice', dieIds: ['d1', 'd2'] } })
+    expect(parseMessage(wrap({ kind: 'interactive-status', pageId: 'a', text: 'Winner' }), 'view')).toMatchObject({ kind: 'interactive-status', text: 'Winner' })
     expect(parseMessage(wrap({ kind: 'need-frame', pageId: 'a', width: 640 }, 'view'), 'show')).toMatchObject({ pageId: 'a', width: 640 })
     expect(parseMessage(wrap({ kind: 'frame', pageId: 'a', width: 640, image: new Blob(['x'], { type: 'image/png' }) }), 'view')).toMatchObject({ kind: 'frame' })
     expect(parseMessage(wrap({ kind: 'bye' }, 'view'), 'show')).toMatchObject({ kind: 'bye' })
@@ -71,7 +72,7 @@ describe('parseMessage', () => {
   })
 
   it('validates commands', () => {
-    for (const command of [{ action: 'format-disk' }, { action: 'goto' }, { action: 'goto', index: -1 }, { action: 'goto', index: 1.5 }, { action: 'goto', index: 100 }, { action: 'goto', index: '1' }, { action: 'spin-wheel', pageId: 'a', wheelId: '' }, { action: 'spin-wheel', pageId: 'a'.repeat(65), wheelId: 'w' }, 'next', null, {}]) {
+    for (const command of [{ action: 'format-disk' }, { action: 'goto' }, { action: 'goto', index: -1 }, { action: 'goto', index: 1.5 }, { action: 'goto', index: 100 }, { action: 'goto', index: '1' }, { action: 'spin-wheel', pageId: 'a', wheelId: '' }, { action: 'spin-wheel', pageId: 'a'.repeat(65), wheelId: 'w' }, { action: 'roll-dice', pageId: 'a', dieIds: [] }, { action: 'roll-dice', pageId: 'a', dieIds: ['d', 'd'] }, { action: 'roll-dice', pageId: 'a', dieIds: 'd' }, 'next', null, {}]) {
       expect(parseMessage(wrap({ kind: 'command', command }, 'view'), 'show')).toBeNull()
     }
   })
@@ -87,6 +88,9 @@ describe('parseMessage', () => {
     expect(parseMessage(bad({ pages: [page('a', { height: Number.NaN })] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: [page('a', { wheels: [{ id: '', label: 'Wheel' }] })] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: [page('a', { wheels: [{ id: 'w', label: 'x'.repeat(201) }] })] }), 'view')).toBeNull()
+    expect(parseMessage(bad({ pages: [page('a', { dice: [{ id: '', label: 'Die' }] })] }), 'view')).toBeNull()
+    expect(parseMessage(bad({ pages: [page('a', { dice: [{ id: 'd', label: 'Die', box: { x: 0, y: 0, w: -1, h: 1 } }] })] }), 'view')).toBeNull()
+    expect(parseMessage(bad({ pages: [page('a', { dice: [{ id: 'd', label: 'Die', box: { x: Number.NaN, y: 0, w: 1, h: 1 } }] })] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: [page('')] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: ['page'] }), 'view')).toBeNull()
     expect(parseMessage(bad({ title: 'x'.repeat(301) }), 'view')).toBeNull()

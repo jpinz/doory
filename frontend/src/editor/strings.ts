@@ -13,8 +13,41 @@ import { videoStrings } from './dialogs/video/strings'
 const plural = (n: number, one: string, many: string): string => (n === 1 ? one : many)
 
 const english = {
-  wheel: {
+  interactive: {
     category: 'Interactive',
+  },
+  dice: {
+    name: 'Die',
+    add: 'Add die',
+    edit: 'Edit die',
+    type: 'Die type',
+    numbered: 'Numbered',
+    symbolic: 'Symbolic',
+    pips: 'Show pips',
+    sides: 'Sides',
+    face: 'Face',
+    symbol: 'Symbol or text',
+    shape: 'Shape',
+    chooseShape: 'Choose a shape',
+    circle: 'Circle',
+    square: 'Square',
+    triangle: 'Triangle',
+    star: 'Star',
+    heart: 'Heart',
+    diamond: 'Diamond',
+    color: 'Face color',
+    dieColor: 'Die color',
+    addFace: 'Add face',
+    removeFace: 'Remove face',
+    apply: 'Apply',
+    roll: 'Roll die',
+    rollAll: 'Roll all dice',
+    total: 'Total',
+    rolling: 'Rolling',
+    result: 'Result',
+    hint: 'Enter a symbol or choose a shape. Leave it empty for a color-only face.',
+  },
+  wheel: {
     name: 'Spinning wheel',
     add: 'Add spinning wheel',
     edit: 'Edit wheel slices',

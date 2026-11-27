@@ -1,12 +1,13 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBlankDocument } from '@/lib/document'
 import type { DoryDocument } from '@/types/document'
 import { createMemoryAdapter } from '../dev/memoryAdapter'
 import { EditorProvider } from '../EditorProvider'
 import { EditorEngine } from '../engine/editor'
-import { t } from '../strings'
+import { defaultDie } from '../dynamic/interactive/dice/model'
 import { defaultWheel } from '../dynamic/interactive/wheel/model'
+import { t } from '../strings'
 import { openLink } from '../presenter/channel'
 import { createChannelHub } from '../presenter/testing'
 import { Presenter } from './Presenter'
@@ -63,6 +64,7 @@ describe('Presenter with motion', () => {
   afterEach(() => {
     engine?.dispose()
     engine = null
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
     vi.useRealTimers()
     delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth
@@ -81,6 +83,34 @@ describe('Presenter with motion', () => {
     engine = await setup(doc)
     await waitFor(() => expect(screen.getByTestId('present-frame')).toHaveAttribute('data-ready', 'true'))
     expect(screen.queryByTestId('present-transition')).toBeNull()
+  })
+
+  it('activates dice and wheels without advancing or changing the design', async () => {
+    stubReducedMotion(true)
+    vi.stubGlobal('PointerEvent', MouseEvent)
+    const doc = createBlankDocument(400, 300)
+    const wheel = defaultWheel()
+    doc.pages[0].objects = [
+      { id: 'wheel', type: 'dorywheel', left: 80, top: 150, width: 100, height: 100, originX: 'center', originY: 'center', wheel },
+      { id: 'die', type: 'dorydie', left: 200, top: 150, width: 100, height: 100, originX: 'center', originY: 'center', die: defaultDie() },
+    ]
+    doc.pages.push({ ...doc.pages[0], id: 'p2', objects: [] })
+    engine = await setup(doc)
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => { (array as Uint32Array)[0] = 4; return array })
+    const before = JSON.stringify(engine.state.doc)
+    const button = await screen.findByRole('button', { name: `${t.dice.roll}: ${t.dice.name}` })
+    const frame = screen.getByTestId('present-frame')
+    vi.spyOn(frame, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) })
+    const box = screen.getByTestId('present-frame-box')
+    fireEvent.pointerDown(box, { button: 0, clientX: 400, clientY: 300 })
+    fireEvent.pointerUp(box, { button: 0, clientX: 400, clientY: 300 })
+    expect(await within(box).findByRole('status')).toHaveTextContent(`${t.dice.result}: 5`)
+    expect(frame).toHaveAttribute('data-page-id', doc.pages[0].id)
+    fireEvent.click(button)
+    expect(within(box).getByRole('status')).toHaveTextContent(`${t.dice.result}: 5`)
+    fireEvent.click(screen.getByRole('button', { name: `${t.wheel.spin}: ${t.wheel.name}` }))
+    expect(within(box).getByRole('status')).toHaveTextContent(`${t.wheel.winner}: ${wheel.slices[0].text}`)
+    expect(JSON.stringify(engine.state.doc)).toBe(before)
   })
 
   it('starts the page time after the page has built up: its animations first, then its time', async () => {
@@ -140,8 +170,7 @@ describe('Presenter with motion', () => {
     expect(JSON.stringify(engine.state.doc)).toBe(before)
   })
 
-  it('spins the current wheel from the presenter channel and reports its result', async () => {
-    const session = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+  function linkView() {
     const hub = createChannelHub()
     vi.stubGlobal('BroadcastChannel', class {
       private channel = hub.create()
@@ -150,6 +179,11 @@ describe('Presenter with motion', () => {
       removeEventListener(type: 'message', listener: (event: MessageEvent) => void): void { this.channel.removeEventListener(type, listener) }
       close(): void { this.channel.close() }
     })
+  }
+
+  it('spins the current wheel from the presenter channel and reports its result', async () => {
+    const session = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
+    linkView()
     stubReducedMotion(true)
     const doc = createBlankDocument(400, 300)
     const pageId = doc.pages[0].id
@@ -162,9 +196,34 @@ describe('Presenter with motion', () => {
     const before = JSON.stringify(engine.state.doc)
     await waitFor(() => expect(screen.getByRole('button', { name: `${t.wheel.spin}: Prize` })).toBeInTheDocument())
     act(() => view.send({ kind: 'command', command: { action: 'spin-wheel', pageId: 'other', wheelId: 'wheel' } }))
-    expect(received).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'wheel-status' }))
+    expect(received).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'interactive-status' }))
     act(() => view.send({ kind: 'command', command: { action: 'spin-wheel', pageId, wheelId: 'wheel' } }))
-    expect(received).toHaveBeenCalledWith(expect.objectContaining({ kind: 'wheel-status', pageId, text: expect.stringContaining(t.wheel.winner) }))
+    expect(received).toHaveBeenCalledWith(expect.objectContaining({ kind: 'interactive-status', pageId, text: expect.stringContaining(t.wheel.winner) }))
+    expect(JSON.stringify(engine.state.doc)).toBe(before)
+    view.close()
+  })
+  it('rolls dice from the presenter channel one at a time or together, with a total for numbered dice', async () => {
+    const session = 'a1b2c3d4e5f60718293a4b5c6d7e8f91'
+    linkView()
+    stubReducedMotion(true)
+    vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => { (array as Uint32Array)[0] = 2; return array })
+    const doc = createBlankDocument(400, 300)
+    const pageId = doc.pages[0].id
+    const die = { type: 'dorydie', die: defaultDie(), top: 150, width: 100, height: 100 }
+    doc.pages[0].objects = [{ ...die, id: 'd1', name: 'Red', left: 100 }, { ...die, id: 'd2', name: 'Blue', left: 300 }]
+    const view = openLink(session, 'view')
+    if (!view) throw new Error('no channel')
+    const received = vi.fn()
+    view.subscribe(received)
+    engine = await setup(doc, { session })
+    const before = JSON.stringify(engine.state.doc)
+    await waitFor(() => expect(screen.getByRole('button', { name: `${t.dice.roll}: Blue` })).toBeInTheDocument())
+    act(() => view.send({ kind: 'command', command: { action: 'roll-dice', pageId, dieIds: ['d2'] } }))
+    expect(received).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'interactive-status', pageId, text: `${t.dice.result}: 3` }))
+    act(() => view.send({ kind: 'command', command: { action: 'roll-dice', pageId, dieIds: ['d1', 'd2'] } }))
+    expect(received).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'interactive-status', pageId, text: `${t.dice.result}: 3, 3 (${t.dice.total}: 6)` }))
+    act(() => view.send({ kind: 'command', command: { action: 'roll-dice', pageId, dieIds: ['d1', 'missing'] } }))
+    expect(received).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'interactive-status', text: t.presenter.preparing }))
     expect(JSON.stringify(engine.state.doc)).toBe(before)
     view.close()
   })
