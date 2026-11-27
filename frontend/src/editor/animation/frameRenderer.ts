@@ -19,7 +19,10 @@ import { asDory } from '../engine/objects/dory'
 import { type BuiltBackground, buildBackground } from '../engine/objects/background'
 import { renderableObjects } from '../engine/render'
 import { type LoadContext, deserializeObjects } from '../engine/serialization'
-import { DoryWheel, wheelAt, wheelObjects } from '../dynamic/interactive/wheel/DoryWheel'
+import { DoryWheel } from '../dynamic/interactive/wheel/DoryWheel'
+import { DoryDie } from '../dynamic/interactive/dice/DoryDie'
+import { interactiveAt, interactiveObjects, type InteractiveObject } from '../dynamic/interactive/at'
+import type { InteractiveControl } from '../dynamic/interactive/model'
 import { t } from '../strings'
 import { type Surface, context2d, createCanvas, drawBlurred } from './canvasFx'
 import { type ClipFrameSource, type ClipMediaFactory, sharedSources } from './clipSource'
@@ -75,10 +78,11 @@ export interface FrameRenderer {
 }
 
 export interface FrameInteractions {
-  readonly wheels: readonly { id: string; label: string }[]
-  readonly spinning: boolean
+  readonly controls: readonly InteractiveControl[]
+  readonly active: boolean
   at(x: number, y: number, tMs: number): string | null
-  spin(id: string, reduced: boolean, done: (text: string) => void): boolean
+  /** `value` is the number rolled on a numbered die. */
+  activate(id: string, reduced: boolean, done: (text: string, value?: number) => void): boolean
 }
 
 interface DevicePoint {
@@ -116,8 +120,11 @@ interface AnimatedLayer {
   units: Map<SplitBy, UnitBitmap[]>
   /** A video clip: its tile is painted again whenever the clip shows another picture. */
   clip?: ClipPart
-  interactive?: { holder: StaticCanvas; wheels: DoryWheel[]; versions: number[] }
+  interactive?: { holder: StaticCanvas; objects: InteractiveObject[]; versions: number[] }
 }
+
+const interactionVersion = (object: InteractiveObject): number => object instanceof DoryDie ? object.rollVersion : object.spinVersion
+const interactionActive = (object: InteractiveObject): boolean => object instanceof DoryDie ? object.isRolling : object.isSpinning
 
 /**
  * The moving part of a clip layer. The clip object stays on a canvas of its own (painting a tile disposes what it
@@ -486,8 +493,8 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   objects.forEach((obj, i) => {
     const doc = docs[i]
     const clip = options.media ? readClip(doc) : null
-    const wheels = options.interactive ? wheelObjects([obj]) : []
-    if (!isAnimated(doc) && !clip && wheels.length === 0) {
+    const interactions = options.interactive ? interactiveObjects([obj]) : []
+    if (!isAnimated(doc) && !clip && interactions.length === 0) {
       run.push(obj)
       return
     }
@@ -503,14 +510,14 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
       const found = textUnitBoxes(obj, by, pad)
       if (found) boxes.set(by, found)
     }
-    if (wheels.length > 0) {
+    if (interactions.length > 0) {
       const held = region.w > 0 && region.h > 0 ? holdTile(obj, region, m) : null
       if (!held) {
         obj.dispose()
         return
       }
       held.holder.renderAll()
-      layers.push({ kind: 'animated', object: doc, box, tile: held.placed, units: new Map(), interactive: { holder: held.holder, wheels, versions: wheels.map((wheel) => wheel.spinVersion) } })
+      layers.push({ kind: 'animated', object: doc, box, tile: held.placed, units: new Map(), interactive: { holder: held.holder, objects: interactions, versions: interactions.map(interactionVersion) } })
       return
     }
     if (clip && media) {
@@ -544,16 +551,21 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   const clipLayers = animated.filter((l) => l.clip)
   const parts = clipLayers.map((l) => l.clip as ClipPart)
   const interactiveParts = animated.flatMap((layer) => layer.interactive ? [layer.interactive] : [])
-  const wheels = interactiveParts.flatMap((part) => part.wheels)
-  const hitContext = wheels.length > 0 ? context2d(createCanvas(1, 1)) : null
+  const interactions = interactiveParts.flatMap((part) => part.objects)
+  const wheels = interactions.filter((object): object is DoryWheel => object instanceof DoryWheel)
+  const dice = interactions.filter((object): object is DoryDie => object instanceof DoryDie)
+  const hitContext = interactions.length > 0 ? context2d(createCanvas(1, 1)) : null
   let last: Readonly<Sample>[] | null = null
   let disposed = false
 
   return {
-    interactive: wheels.length > 0 ? {
-      wheels: wheels.map((wheel) => ({ id: asDory(wheel).id!, label: asDory(wheel).name || t.wheel.name })),
-      get spinning() {
-        return wheels.some((wheel) => wheel.isSpinning)
+    interactive: interactions.length > 0 ? {
+      controls: [
+        ...wheels.map((wheel): InteractiveControl => ({ id: asDory(wheel).id!, kind: 'wheel', label: asDory(wheel).name || t.wheel.name })),
+        ...dice.map((die): InteractiveControl => ({ id: asDory(die).id!, kind: 'die', label: asDory(die).name || t.dice.name })),
+      ],
+      get active() {
+        return interactions.some(interactionActive)
       },
       at(x, y, tMs) {
         if (disposed || !hitContext) return null
@@ -575,13 +587,16 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
           if (clipped) continue
           const local = point.transform([matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f])
           if (!object.containsPoint(local)) continue
-          const wheel = wheelAt([object], local)
-          return wheel ? asDory(wheel).id ?? null : null
+          const target = interactiveAt([object], local)
+          return target ? asDory(target).id ?? null : null
         }
         return null
       },
-      spin(id, reduced, done) {
-        return !disposed && (wheels.find((wheel) => asDory(wheel).id === id)?.spin(reduced, done) ?? false)
+      activate(id, reduced, done) {
+        if (disposed) return false
+        const object = interactions.find((item) => asDory(item).id === id)
+        if (object instanceof DoryDie) return object.roll(reduced, done)
+        return object instanceof DoryWheel ? object.spin(reduced, done) : false
       },
     } : undefined,
     page: size,
@@ -595,8 +610,8 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
       let moved = false
       for (const layer of clipLayers) moved = updateClip(layer, tMs) || moved
       for (const part of interactiveParts) {
-        if (part.wheels.some((wheel, i) => wheel.spinVersion !== part.versions[i])) {
-          part.versions = part.wheels.map((wheel) => wheel.spinVersion)
+        if (part.objects.some((object, i) => interactionVersion(object) !== part.versions[i])) {
+          part.versions = part.objects.map(interactionVersion)
           part.holder.renderAll()
           moved = true
         }
@@ -628,6 +643,7 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
     suspendMedia(): void {
       for (const part of parts) part.source.suspend()
       for (const wheel of wheels) wheel.resetSpin()
+      for (const die of dice) die.resetRoll()
     },
     dispose(): void {
       disposed = true

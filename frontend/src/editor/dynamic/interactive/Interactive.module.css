@@ -8,14 +8,14 @@
   margin: 0;
   color: var(--ed-text-dim);
 }
-.slices {
+.entries {
   display: grid;
   gap: 12px;
   max-height: min(52vh, 480px);
   overflow: auto;
   padding: 2px;
 }
-.slice {
+.entry {
   display: grid;
   gap: 8px;
   min-width: 0;
@@ -24,11 +24,11 @@
   border: 1px solid var(--ed-border);
   border-radius: 8px;
 }
-.slice legend {
+.entry legend {
   padding: 0 4px;
   font-weight: 600;
 }
-.slice label,
+.entry label,
 .color {
   display: grid;
   gap: 4px;

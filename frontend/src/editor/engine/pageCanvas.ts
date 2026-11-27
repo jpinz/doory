@@ -40,7 +40,9 @@ import {
 import { anchorFrames, carriedPictures, clampSlotImage, followFrames, type FrameAnchor, slotOf, strokeSlotOutline } from './objects/slot'
 import { applyLock, asDory, ensureId } from './objects/dory'
 import { kindOfLive } from './objects/kinds'
-import { wheelAt } from '../dynamic/interactive/wheel/DoryWheel'
+import { interactiveAt } from '../dynamic/interactive/at'
+import { DoryDie } from '../dynamic/interactive/dice/DoryDie'
+import type { InteractiveKind } from '../dynamic/interactive/model'
 import { reapplyCase, refitTextbox, syncDirection } from './objects/textStyle'
 import { type CanvasTheme, applyThemeToCanvas, selectionStyle } from './objects/theme'
 import { type Deferred, mergeObject, planPage } from './remoteSync'
@@ -85,7 +87,7 @@ export interface PageCanvasHost {
   onPlaceholderActivate(pageId: string, id: string): void
   /** The selected picture was double-clicked. */
   onImageActivate(pageId: string): void
-  onWheelActivate?(pageId: string, id: string): void
+  onInteractiveActivate?(pageId: string, id: string, kind: InteractiveKind): void
   onImageGridCellActivate(pageId: string, gridId: string, gridCellId: string): void
   onImageGridCellSwap(pageId: string, gridId: string, fromCellId: string, toCellId: string): void
   onImageGridImageDrop(pageId: string, sourceId: string, gridId: string, gridCellId: string, sourceFrame: CanvasImageFrame): void
@@ -853,8 +855,8 @@ export class PageCanvas {
   private onMouseDown(e: TPointerEventInfo<MouseEvent>): void {
     const host = this.host
     if (host.readOnly && e.e.button === 0) {
-      const wheel = wheelAt(this.canvas.getObjects(), e.scenePoint)
-      this.wheelPress = wheel ? { id: asDory(wheel).id ?? '', x: e.e.clientX, y: e.e.clientY } : null
+      const object = interactiveAt(this.canvas.getObjects(), e.scenePoint)
+      this.interactivePress = object ? { id: asDory(object).id ?? '', x: e.e.clientX, y: e.e.clientY } : null
     }
     if (host.readOnly) return
     const ev = e.e
@@ -886,11 +888,11 @@ export class PageCanvas {
   }
 
   private placeholderClick: { id: string; x: number; y: number } | null = null
-  private wheelPress: { id: string; x: number; y: number } | null = null
+  private interactivePress: { id: string; x: number; y: number } | null = null
 
   private onMouseMove(e: TPointerEventInfo<MouseEvent>): void {
     if (this.host.readOnly) {
-      this.canvas.setCursor(wheelAt(this.canvas.getObjects(), e.scenePoint) ? 'pointer' : this.canvas.defaultCursor)
+      this.canvas.setCursor(interactiveAt(this.canvas.getObjects(), e.scenePoint) ? 'pointer' : this.canvas.defaultCursor)
       return
     }
     const press = this.gridCellPress
@@ -910,12 +912,12 @@ export class PageCanvas {
   }
 
   private onMouseUp(e: TPointerEventInfo<MouseEvent>): void {
-    const wheelPress = this.wheelPress
-    this.wheelPress = null
+    const press = this.interactivePress
+    this.interactivePress = null
     if (this.host.readOnly) {
-      const wheel = wheelAt(this.canvas.getObjects(), e.scenePoint)
-      if (wheelPress && wheel && asDory(wheel).id === wheelPress.id && Math.hypot(e.e.clientX - wheelPress.x, e.e.clientY - wheelPress.y) < NUDGE_CLICK_SLOP) {
-        this.host.onWheelActivate?.(this.pageId, wheelPress.id)
+      const object = interactiveAt(this.canvas.getObjects(), e.scenePoint)
+      if (press && object && asDory(object).id === press.id && Math.hypot(e.e.clientX - press.x, e.e.clientY - press.y) < NUDGE_CLICK_SLOP) {
+        this.host.onInteractiveActivate?.(this.pageId, press.id, object instanceof DoryDie ? 'die' : 'wheel')
       }
       return
     }

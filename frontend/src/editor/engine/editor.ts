@@ -18,6 +18,8 @@ import { CropApi } from './api/crop'
 import { InsertApi } from './api/insert'
 import { ImageGridApi, type CanvasImageFrame } from './api/imageGrids'
 import { WheelsApi } from '../dynamic/interactive/wheel/api'
+import { DiceApi } from '../dynamic/interactive/dice/api'
+import type { InteractiveKind } from '../dynamic/interactive/model'
 import { PagesApi } from './api/pages'
 import { StyleApi } from './api/style'
 import { ViewApi, type ViewportController } from './api/view'
@@ -117,6 +119,7 @@ export class EditorEngine implements PageCanvasHost {
   readonly insert: InsertApi
   readonly imageGrids: ImageGridApi
   readonly wheels: WheelsApi
+  readonly dice: DiceApi
   readonly arrange: ArrangeApi
   readonly style: StyleApi
   readonly pages: PagesApi
@@ -166,6 +169,7 @@ export class EditorEngine implements PageCanvasHost {
     this.insert = new InsertApi(this)
     this.imageGrids = new ImageGridApi(this)
     this.wheels = new WheelsApi(this)
+    this.dice = new DiceApi(this)
     this.arrange = new ArrangeApi(this)
     this.style = new StyleApi(this)
     this.pages = new PagesApi(this)
@@ -240,8 +244,9 @@ export class EditorEngine implements PageCanvasHost {
     return (q) => this.adapter.services.fonts.list(q)
   }
 
-  onWheelActivate(pageId: string, id: string): void {
-    this.wheels.spin(pageId, id)
+  onInteractiveActivate(pageId: string, id: string, kind: InteractiveKind): void {
+    if (kind === 'wheel') this.wheels.spin(pageId, id)
+    else this.dice.roll(pageId, id)
   }
 
   /** Swaps the adapter (guest → account migration); open pages keep working. */

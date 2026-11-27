@@ -104,7 +104,8 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
 
   const close = useCallback(() => editor.closeDialog(), [editor])
   const spinWheel = useCallback((pageId: string, wheelId: string) => motionStage.current?.spin(pageId, wheelId) ?? false, [])
-  const host = useViewHost({ session, title, doc, durations, state, dispatch, onExit: close, onSpinWheel: spinWheel, previews })
+  const rollDice = useCallback((pageId: string, dieIds: readonly string[]) => motionStage.current?.roll(pageId, dieIds) ?? false, [])
+  const host = useViewHost({ session, title, doc, durations, state, dispatch, onExit: close, onSpinWheel: spinWheel, onRollDice: rollDice, previews })
   const viewOpen = host.connected && windowOpen
 
   // Everything the key handler reads: it is registered once and must never see stale values.
@@ -350,7 +351,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
     >
       <div className={styles.main}>
         {motionFrames ? (
-          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} spinRef={motionStage} onWheelStatus={host.wheelStatus} onPointerDown={onStageDown} onPointerUp={onStageUp}>
+          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} interactiveRef={motionStage} onInteractiveStatus={host.interactiveStatus} onPointerDown={onStageDown} onPointerUp={onStageUp}>
             {stageOverlays}
           </PresenterMotionStage>
         ) : (

@@ -52,13 +52,32 @@ export interface PagePreview {
   durationSec: number | null
   width: number
   height: number
-  wheels?: { id: string; label: string }[]
+  wheels?: InteractivePreview[]
+  dice?: InteractivePreview[]
 }
+
+export interface InteractivePreview {
+  id: string
+  label: string
+  /** Where it sits on the page, as fractions of the page's size, so the view can mark it on the picture. */
+  box?: PreviewBox
+}
+
+export interface PreviewBox {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** At most this many wheels, and this many dice, are offered per page. */
+export const MAX_PAGE_INTERACTIVES = 100
 
 export type ViewCommand =
   | { action: 'next' | 'prev' | 'first' | 'last' | 'toggle-pause' | 'toggle-loop' | 'toggle-blackout' | 'restart' | 'exit' }
   | { action: 'goto'; index: number }
   | { action: 'spin-wheel'; pageId: string; wheelId: string }
+  | { action: 'roll-dice'; pageId: string; dieIds: string[] }
 
 export type ChannelMessage =
   | { kind: 'hello' }
@@ -67,7 +86,7 @@ export type ChannelMessage =
   | { kind: 'command'; command: ViewCommand }
   | { kind: 'need-frame'; pageId: string; width: number }
   | { kind: 'frame'; pageId: string; width: number; image: Blob }
-  | { kind: 'wheel-status'; pageId: string; text: string }
+  | { kind: 'interactive-status'; pageId: string; text: string }
   | { kind: 'bye' }
 
 export type Envelope = ChannelMessage & { v: typeof PROTOCOL_VERSION; from: Role }
@@ -80,7 +99,7 @@ const SENDER: Readonly<Record<ChannelMessage['kind'], Role | 'both'>> = {
   command: 'view',
   'need-frame': 'view',
   frame: 'show',
-  'wheel-status': 'show',
+  'interactive-status': 'show',
   bye: 'both',
 }
 
@@ -101,20 +120,41 @@ function parseState(value: unknown): SlideshowState | null {
 
 function parsePage(value: unknown): PagePreview | null {
   if (!isObject(value)) return null
-  const { id, name, notes, durationSec, width, height, wheels } = value
+  const { id, name, notes, durationSec, width, height, wheels, dice } = value
   if (!isText(id, MAX_ID) || id === '' || !isText(name, MAX_NAME) || !isText(notes, NOTES_MAX_LENGTH)) return null
   const timeOk = durationSec === null || (typeof durationSec === 'number' && Number.isFinite(durationSec) && durationSec >= DURATION_MIN_SEC && durationSec <= DURATION_MAX_SEC)
   const sideOk = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0 && n <= MAX_PAGE_SIDE
   if (!timeOk || !sideOk(width) || !sideOk(height)) return null
-  const parsedWheels: NonNullable<PagePreview['wheels']> = []
-  if (wheels !== undefined) {
-    if (!Array.isArray(wheels) || wheels.length > 100) return null
-    for (const wheel of wheels) {
-      if (!isObject(wheel) || !isText(wheel.id, MAX_ID) || wheel.id === '' || !isText(wheel.label, MAX_NAME)) return null
-      parsedWheels.push({ id: wheel.id, label: wheel.label })
-    }
+  const parsedWheels = parseInteractives(wheels)
+  const parsedDice = parseInteractives(dice)
+  if (parsedWheels === null || parsedDice === null) return null
+  return {
+    id, name, notes, durationSec: durationSec as number | null, width, height,
+    ...(parsedWheels ? { wheels: parsedWheels } : {}),
+    ...(parsedDice ? { dice: parsedDice } : {}),
   }
-  return { id, name, notes, durationSec: durationSec as number | null, width, height, ...(wheels === undefined ? {} : { wheels: parsedWheels }) }
+}
+
+/** `undefined` when the page has none listed, `null` when the list is malformed. */
+function parseInteractives(value: unknown): InteractivePreview[] | undefined | null {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length > MAX_PAGE_INTERACTIVES) return null
+  const parsed: InteractivePreview[] = []
+  for (const item of value) {
+    if (!isObject(item) || !isText(item.id, MAX_ID) || item.id === '' || !isText(item.label, MAX_NAME)) return null
+    const box = item.box === undefined ? undefined : parseBox(item.box)
+    if (box === null) return null
+    parsed.push({ id: item.id, label: item.label, ...(box ? { box } : {}) })
+  }
+  return parsed
+}
+
+/** Objects may hang off the page, but not without bound. */
+function parseBox(value: unknown): PreviewBox | null {
+  if (!isObject(value)) return null
+  const { x, y, w, h } = value
+  const within = (n: unknown, min: number): n is number => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= 100
+  return within(x, -100) && within(y, -100) && within(w, 0) && within(h, 0) ? { x, y, w, h } : null
 }
 
 function parseCommand(value: unknown): ViewCommand | null {
@@ -123,6 +163,12 @@ function parseCommand(value: unknown): ViewCommand | null {
   if (value.action === 'spin-wheel') {
     return isText(value.pageId, MAX_ID) && value.pageId !== '' && isText(value.wheelId, MAX_ID) && value.wheelId !== ''
       ? { action: 'spin-wheel', pageId: value.pageId, wheelId: value.wheelId } : null
+  }
+  if (value.action === 'roll-dice') {
+    const ids = value.dieIds
+    const idsOk = Array.isArray(ids) && ids.length > 0 && ids.length <= MAX_PAGE_INTERACTIVES && new Set(ids).size === ids.length
+      && ids.every((id) => isText(id, MAX_ID) && id !== '')
+    return isText(value.pageId, MAX_ID) && value.pageId !== '' && idsOk ? { action: 'roll-dice', pageId: value.pageId, dieIds: [...ids] } : null
   }
   return COMMANDS.has(value.action) ? ({ action: value.action } as ViewCommand) : null
 }
@@ -154,7 +200,7 @@ function parseBody(kind: string, data: Record<string, unknown>): ChannelMessage 
     }
     case 'need-frame':
       return isText(data.pageId, MAX_ID) && data.pageId !== '' && isInt(data.width, 1, MAX_FRAME_WIDTH) ? { kind, pageId: data.pageId, width: data.width } : null
-    case 'wheel-status':
+    case 'interactive-status':
       return isText(data.pageId, MAX_ID) && data.pageId !== '' && isText(data.text, MAX_NAME) ? { kind, pageId: data.pageId, text: data.text } : null
     case 'frame': {
       const image = data.image

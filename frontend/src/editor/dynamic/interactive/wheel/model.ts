@@ -1,6 +1,7 @@
 import { t } from '../../../strings'
 import type { DocObject } from '@/types/document'
 import { newId } from '@/lib/document'
+import { findInteractiveDocuments } from '../model'
 
 export interface WheelSlice {
   id: string
@@ -19,11 +20,7 @@ export const WHEEL_SIZE = 400
 export const WHEEL_RADIUS = 184
 
 export function wheelDocuments(objects: readonly DocObject[]): DocObject[] {
-  return objects.flatMap((object) => {
-    if (object.visible === false || object.opacity === 0) return []
-    if (object.type.toLowerCase() === 'dorywheel' && readWheel(object.wheel)) return [object]
-    return Array.isArray(object.objects) ? wheelDocuments(object.objects as DocObject[]) : []
-  })
+  return findInteractiveDocuments(objects, (object) => object.type.toLowerCase() === 'dorywheel' && readWheel(object.wheel) !== null)
 }
 
 export function defaultWheel(): WheelSpec {
@@ -88,12 +85,4 @@ export function sliceGeometry(start: number, percentage: number): { path: string
     ? `M 0 -${WHEEL_RADIUS} A ${WHEEL_RADIUS} ${WHEEL_RADIUS} 0 1 1 0 ${WHEEL_RADIUS} A ${WHEEL_RADIUS} ${WHEEL_RADIUS} 0 1 1 0 -${WHEEL_RADIUS} Z`
     : `M 0 0 L ${point(a)} A ${WHEEL_RADIUS} ${WHEEL_RADIUS} 0 ${percentage > 50 ? 1 : 0} 1 ${point(b)} Z`
   return { path, angle: (start + percentage / 2) * 3.6 - 90 }
-}
-
-export function wheelTextColor(color: string): string {
-  const rgb = [1, 3, 5].map((index) => {
-    const value = parseInt(color.slice(index, index + 2), 16) / 255
-    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-  })
-  return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722 > 0.179 ? '#000000' : '#ffffff'
 }

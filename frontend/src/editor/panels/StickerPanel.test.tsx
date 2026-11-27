@@ -80,7 +80,7 @@ describe('StickerPanel packs', () => {
     expect(screen.getByTestId('sticker-category')).toHaveTextContent(t.stickers.all)
     expect(screen.queryByRole('button', { name: t.wheel.add })).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('sticker-category'))
-    expect(screen.queryByRole('option', { name: t.wheel.category })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: t.interactive.category })).not.toBeInTheDocument()
   })
 
   it('updates cached category labels in place when the language changes, keeping the search draft', async () => {

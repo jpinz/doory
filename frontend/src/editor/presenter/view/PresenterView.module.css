@@ -95,8 +95,17 @@
 }
 .picture {
   position: absolute;
+  overflow: hidden;
   background: var(--color-surface);
   box-shadow: var(--shadow-artboard);
+}
+.mark {
+  position: absolute;
+  outline: 3px solid var(--color-info);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-info) 15%, transparent);
+  pointer-events: none;
 }
 .picture img {
   display: block;
@@ -128,7 +137,7 @@
   align-items: center;
   gap: var(--space-3);
 }
-.wheels {
+.interactives {
   display: flex;
   flex: none;
   flex-wrap: wrap;
@@ -136,7 +145,7 @@
   max-height: 120px;
   overflow-y: auto;
 }
-.wheelStatus:empty {
+.interactiveStatus:empty {
   display: none;
 }
 .bar {
