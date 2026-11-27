@@ -158,6 +158,26 @@ describe('PresenterView', () => {
     expect(a.commands().map((c) => c.action)).toEqual(['next', 'prev', 'toggle-pause', 'toggle-loop', 'restart', 'toggle-blackout', 'next', 'first', 'last', 'toggle-pause', 'toggle-blackout', 'restart', 'exit'])
   })
 
+  it('offers the current page wheels and displays their results', async () => {
+    const a = audience()
+    const user = userEvent.setup()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.show.send({
+      kind: 'init', title: 'Deck', theme: null,
+      pages: [{ ...pages[0], wheels: [{ id: 'w1', label: 'Prize' }, { id: 'w2', label: 'Bonus' }] }, pages[1]],
+      state: stateAt(),
+    }))
+    await user.click(await screen.findByRole('button', { name: `${t.wheel.spin}: Bonus` }))
+    expect(a.commands()).toContainEqual({ action: 'spin-wheel', pageId: 'a', wheelId: 'w2' })
+    act(() => a.show.send({ kind: 'wheel-status', pageId: 'a', text: 'Winner: Red' }))
+    expect(screen.getByText('Winner: Red')).toBeInTheDocument()
+    act(() => a.show.send({ kind: 'state', state: stateAt({ blackout: true }) }))
+    expect(screen.getByRole('button', { name: `${t.wheel.spin}: Prize` })).toBeDisabled()
+    act(() => a.show.send({ kind: 'state', state: stateAt({ index: 1 }) }))
+    expect(screen.queryByRole('button', { name: `${t.wheel.spin}: Prize` })).toBeNull()
+    expect(screen.queryByText('Winner: Red')).toBeNull()
+  })
+
   it('changes the notes text size and remembers it', async () => {
     const a = audience()
     const user = userEvent.setup()
