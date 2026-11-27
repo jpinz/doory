@@ -1,26 +1,28 @@
 import { msg } from '@/i18n/catalog'
 import { Link } from 'react-router-dom'
-import poster from '@/assets/landing/night-bloom-concert-poster.webp'
-import sale from '@/assets/landing/bold-sale-announcement.webp'
-import story from '@/assets/landing/rooftop-event-story.webp'
 import styles from './HeroCards.module.css'
 
 const CARDS = [
-  { slug: 'bold-sale-announcement', src: sale, caption: "a sale post", label: "A sale post template", place: styles.left, width: 17.5, aspect: 1 },
-  { slug: 'rooftop-event-story', src: story, caption: "a story", label: "An event story template", place: styles.middle, width: 15, aspect: 1080 / 1920 },
-  { slug: 'night-bloom-concert-poster', src: poster, caption: "a poster", label: "A tour poster template", place: styles.right, width: 16.25, aspect: 1728 / 2304 },
+  { id: 'board', caption: "Game board", label: "Create a game board", place: styles.left },
+  { id: 'question', caption: "Question slide", label: "Create a question slide", place: styles.middle },
+  { id: 'answer', caption: "Answer slide", label: "Create an answer slide", place: styles.right },
 ]
 
-/** Three of the starter templates, fanned out: each card opens its template. */
+/** Three slide roles in a presentation game, all opening a blank deck. */
 export function HeroCards() {
   return (
     <div className={styles.fan}>
       <ul className={styles.art}>
         {CARDS.map((card) => (
-          <li key={card.slug} className={card.place} style={{ width: `${card.width}rem`, height: `${card.width / card.aspect}rem`, marginLeft: `${-card.width / 2}rem` }}>
-            <Link to={`/templates/${card.slug}`} className={styles.link} aria-label={`${msg(card.label)}. Open it`}>
-              <span className={styles.card}>
-                <img className={styles.picture} src={card.src} alt="" width={Math.round(960 * card.aspect)} height={960} loading="eager" decoding="async" />
+          <li key={card.id} className={card.place}>
+            <Link to="/create?preset=presentation" className={styles.link} aria-label={msg(card.label)}>
+              <span className={`${styles.card} ${styles.scene}`}>
+                {card.id === 'board' ? <>
+                  <strong>{msg("Round 1")}</strong>
+                  <span className={styles.board}>{[100, 200, 300, 100, 200, 300].map((value, index) => <span key={index}>{value}</span>)}</span>
+                </> : card.id === 'question' ? <>
+                  <small>{msg("Question")}</small><strong>{msg("What is 6 × 7?")}</strong>
+                </> : <><small>{msg("Answer")}</small><strong className={styles.answer}>42</strong></>}
               </span>
               <span className={styles.caption} aria-hidden="true">
                 {msg(card.caption)}

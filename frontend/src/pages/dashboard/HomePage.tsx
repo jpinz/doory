@@ -6,7 +6,7 @@ import { LazyCreateDesignDialog } from '@/features/create/LazyCreateDesignDialog
 import { DesignTile } from '@/features/dashboard/DesignTile'
 import bunny from '@/assets/bunny-sticker.webp'
 import { createUrl, presetParts } from '@/features/presets'
-import { useSizePresets } from '@/lib/sizePresets'
+import { presentationCatalogue, useSizePresets } from '@/lib/sizePresets'
 import { noteUsedSize, useSizeChoices, yourSizes } from '@/lib/sizePresets/choices'
 import { TemplateCard } from '@/features/templates/TemplateCard'
 import { useDesignsList, useTemplatesList } from '@/lib/api/hooks'
@@ -29,13 +29,15 @@ function TileSkeletons({ count }: { count: number }) {
 }
 
 export default function HomePage() {
-  const catalogue = useSizePresets()
+  const catalogue = presentationCatalogue(useSizePresets())
   const choices = useSizeChoices()
+  const pinned = yourSizes(catalogue, choices)
+  const sizes = pinned.length > 0 ? pinned : catalogue.presets
   const [allSizes, setAllSizes] = useState(false)
   usePageTitle(msg("Home"))
   const recent = useDesignsList({ ordering: '-updated_at', page_size: 8 })
   const starred = useDesignsList({ starred: true, ordering: '-updated_at', page_size: 4 })
-  const templates = useTemplatesList({ page_size: 8 })
+  const templates = useTemplatesList({ page_size: 8, presentation_only: true })
   const recentItems = recent.data?.pages[0]?.results ?? []
   const starredItems = starred.data?.pages[0]?.results ?? []
   const templateItems = templates.data?.pages[0]?.results ?? []
@@ -45,14 +47,14 @@ export default function HomePage() {
       <section aria-labelledby="quick-create" className={homeStyles.hero}>
         <div className={homeStyles.heroHead}>
           <h1 id="quick-create" className={homeStyles.heroTitle}>
-            {msg("Create a design")}</h1>
+            {msg("Create a presentation")}</h1>
           <div className={homeStyles.heroLinks}>
-            <Link to="/create">{msg("Custom size")}</Link>
+            <Link to="/create">{msg("Blank presentation")}</Link>
             <Link to="/dashboard/templates">{msg("Start from a template")}</Link>
           </div>
         </div>
         <ul className={homeStyles.chips}>
-          {yourSizes(catalogue, choices).map((preset) => {
+          {sizes.map((preset) => {
             const { name, detail } = presetParts(preset)
             const wide = preset.width >= preset.height
             return (
@@ -72,7 +74,7 @@ export default function HomePage() {
               <span className={homeStyles.shapeBox} aria-hidden="true">
                 <LayoutGrid size={24} />
               </span>
-              <span className={homeStyles.chipName}>{msg("All sizes")}</span>
+              <span className={homeStyles.chipName}>{msg("Slide formats")}</span>
               <span className={homeStyles.chipSize}>{catalogue.presets.length} {msg("sizes")}</span>
             </button>
           </li>

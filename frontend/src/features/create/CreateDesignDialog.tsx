@@ -2,11 +2,10 @@ import { msg } from '@/i18n/catalog'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createUrl } from '@/features/presets'
-import { type SizePreset } from '@/lib/sizePresets'
+import { presentationCatalogue, type SizePreset, useSizePresets } from '@/lib/sizePresets'
 import { noteUsedSize } from '@/lib/sizePresets/choices'
 import { presetSizeText } from '@/lib/sizePresets/picker'
 import { PresetShape } from '@/lib/sizePresets/PresetShape'
-import { SizePicker } from '@/lib/sizePresets/SizePicker'
 import { Button, Dialog } from '@/ui'
 import { CustomSizeForm } from './CustomSizeForm'
 import styles from './CreateDesignDialog.module.css'
@@ -18,9 +17,10 @@ export interface CreateDesignDialogProps {
   initialTab?: 'sizes' | 'custom'
 }
 
-/** Pick a size from the catalogue (by format or platform, filtered or searched) or enter a custom size. */
+/** Choose a presentation format or a custom slide size. */
 export function CreateDesignDialog({ open, onClose, initialTab = 'sizes' }: CreateDesignDialogProps) {
   const navigate = useNavigate()
+  const catalogue = presentationCatalogue(useSizePresets())
   const [chosen, setChosen] = useState<SizePreset | null>(null)
   // The custom size form has its own Create button.
   const [custom, setCustom] = useState(initialTab === 'custom')
@@ -43,8 +43,8 @@ export function CreateDesignDialog({ open, onClose, initialTab = 'sizes' }: Crea
     <Dialog
       open={open}
       onClose={close}
-      title={msg("Create a design")}
-      description={msg("Choose a size to start with. You can change it any time.")}
+      title={msg("Create a presentation")}
+      description={msg("Choose a slide format. Every new document is a presentation.")}
       size="xl"
       footer={
         <>
@@ -67,12 +67,26 @@ export function CreateDesignDialog({ open, onClose, initialTab = 'sizes' }: Crea
             {msg("Cancel")}</Button>
           {custom ? null : (
             <Button disabled={!chosen} onClick={() => chosen && create(chosen)}>
-              {msg("Create design")}</Button>
+              {msg("Create presentation")}</Button>
           )}
         </>
       }
     >
-      <SizePicker selectedId={chosen?.id} onSelect={setChosen} onConfirm={create} startWithCustom={initialTab === 'custom'} onCustomChange={setCustom} custom={<CustomSizeForm onSubmit={(size) => go(createUrl(size))} />} />
+      <div className={styles.tabs} role="group" aria-label={msg("Slide size")}>
+        <button type="button" aria-pressed={!custom} onClick={() => setCustom(false)}>{msg("Slide formats")}</button>
+        <button type="button" aria-pressed={custom} onClick={() => setCustom(true)}>{msg("Custom slide size")}</button>
+      </div>
+      {custom ? <CustomSizeForm initialSize={{ width: 1920, height: 1080 }} submitLabel="Create presentation" onSubmit={(size) => go(createUrl(size))} /> : (
+        <ul className={styles.presets}>
+          {catalogue.presets.map((preset) => <li key={preset.id}>
+            <button type="button" aria-pressed={chosen?.id === preset.id} onClick={() => setChosen(preset)} onDoubleClick={() => create(preset)}>
+              <PresetShape preset={preset} size={64} />
+              <strong>{preset.label}</strong>
+              <small>{presetSizeText(preset)}</small>
+            </button>
+          </li>)}
+        </ul>
+      )}
     </Dialog>
   )
 }

@@ -34,6 +34,12 @@ describe('planMotion', () => {
     expect(planMotion({ pages: [page('a', [die])] }, true).moves).toBe(true)
   })
 
+  it('uses the interactive stage for linked slides even without animation', () => {
+    const linked = obj('board-square')
+    linked.presentationLink = { pageId: 'question' }
+    expect(planMotion({ pages: [page('board', [linked]), page('question')] }, false).moves).toBe(true)
+  })
+
   it('plays a transition it does not know as none', () => {
     expect(planMotion(deck(), false).pages[2].transition).toBeNull()
   })

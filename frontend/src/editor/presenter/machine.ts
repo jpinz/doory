@@ -13,6 +13,8 @@ export interface SlideshowConfig {
   count: number
   /** Seconds each page stays up while auto-advance is on; `null` = waits for the presenter. One entry per page. */
   durations: readonly (number | null)[]
+  /** Resolved flow destinations; absent means normal slide order. Null ends the show. */
+  nextIndices?: readonly (number | null)[]
 }
 
 export interface SlideshowState {
@@ -25,6 +27,8 @@ export interface SlideshowState {
   loop: boolean
   /** The audience sees a black screen. */
   blackout: boolean
+  /** Slide visits made by interactive links, most recent last. */
+  history: number[]
   pageMs: number
   totalMs: number
 }
@@ -35,6 +39,7 @@ export type SlideshowAction =
   | { type: 'first' }
   | { type: 'last' }
   | { type: 'goto'; index: number }
+  | { type: 'follow'; index: number }
   /** Pause / resume auto-advance; with auto-advance off it switches it on (the "play" of a player). */
   | { type: 'togglePause' }
   | { type: 'setAutoAdvance'; on: boolean }
@@ -57,6 +62,7 @@ export function initialState(config: SlideshowConfig, options: { index?: number;
     paused: false,
     loop: options.loop ?? false,
     blackout: false,
+    history: [],
     pageMs: 0,
     totalMs: 0,
   }
@@ -98,8 +104,16 @@ function moveTo(config: SlideshowConfig, state: SlideshowState, index: number): 
 
 function forward(config: SlideshowConfig, state: SlideshowState, carryMs = 0): SlideshowState {
   if (state.ended) return state
-  if (state.index < config.count - 1) return { ...moveTo(config, state, state.index + 1), pageMs: carryMs }
-  if (state.loop) return { ...moveTo(config, state, 0), pageMs: carryMs }
+  const target = config.nextIndices ? config.nextIndices[state.index] : state.index + 1 < config.count ? state.index + 1 : null
+  if (typeof target === 'number' && Number.isInteger(target) && target >= 0 && target < config.count) {
+    const returning = state.history.lastIndexOf(target)
+    return {
+      ...moveTo(config, state, target),
+      history: returning >= 0 ? state.history.slice(0, returning) : state.history,
+      pageMs: carryMs,
+    }
+  }
+  if (state.loop) return { ...moveTo(config, state, 0), history: [], pageMs: carryMs }
   return { ...state, ended: true, blackout: false, pageMs: 0 }
 }
 
@@ -125,13 +139,27 @@ export function reduce(config: SlideshowConfig, state: SlideshowState, action: S
       return forward(config, state)
     case 'prev':
       if (state.ended) return { ...state, ended: false, blackout: false, pageMs: 0 }
+      if (state.history.length > 0) {
+        const history = state.history.slice(0, -1)
+        const index = state.history[state.history.length - 1]
+        return { ...moveTo(config, state, index), history }
+      }
       return state.index === 0 ? { ...state, blackout: false, pageMs: 0 } : moveTo(config, state, state.index - 1)
     case 'first':
-      return moveTo(config, state, 0)
+      return { ...moveTo(config, state, 0), history: [] }
     case 'last':
-      return moveTo(config, state, config.count - 1)
+      return { ...moveTo(config, state, config.count - 1), history: [] }
     case 'goto':
-      return moveTo(config, state, action.index)
+      return { ...moveTo(config, state, action.index), history: [] }
+    case 'follow': {
+      const index = clampIndex(config, action.index)
+      if (index === state.index) return state
+      const returning = state.history.lastIndexOf(index)
+      return {
+        ...moveTo(config, state, index),
+        history: returning >= 0 ? state.history.slice(0, returning) : [...state.history.slice(-99), state.index],
+      }
+    }
     case 'togglePause':
       if (!state.autoAdvance) return { ...state, autoAdvance: true, paused: false, pageMs: 0 }
       return { ...state, paused: !state.paused }
@@ -144,7 +172,7 @@ export function reduce(config: SlideshowConfig, state: SlideshowState, action: S
     case 'setBlackout':
       return state.ended || state.blackout === action.on ? state : { ...state, blackout: action.on }
     case 'restart':
-      return { ...state, index: 0, ended: false, paused: false, blackout: false, pageMs: 0, totalMs: 0 }
+      return { ...state, index: 0, ended: false, paused: false, blackout: false, history: [], pageMs: 0, totalMs: 0 }
     case 'tick':
       return tick(config, state, action.dt, action.countdown !== false)
   }

@@ -1,6 +1,7 @@
 /* Generated from editor strings; do not change the English functions or argument handling here. */
 const people = (n: number): string => `${n} 人`
 export const functions: Record<string, (...args: never[]) => string> = {
+  "sections.count": (count: number) => `${count} 张幻灯片`,
   "animation.announce.added": (preset: string): string => `已添加“${preset}”动画`,
   "animation.announce.pageStyled": (n: number): string => `已为 ${n} 个对象添加动画`,
   "animation.announce.transitionSet": (preset: string): string => `页面转场：${preset}`,

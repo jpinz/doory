@@ -32,6 +32,8 @@ interface Shown {
   css: Rect
 }
 
+type StageInteraction = { kind: 'control'; id: string } | { kind: 'link'; pageId: string }
+
 interface MotionStageProps {
   doc: DoryDocument
   index: number
@@ -41,6 +43,7 @@ interface MotionStageProps {
   loop: boolean
   onPointerDown: (e: React.PointerEvent) => void
   onPointerUp: (e: React.PointerEvent) => void
+  onNavigate: (pageId: string) => void
   children?: React.ReactNode
   interactiveRef: Ref<MotionStageHandle>
   onInteractiveStatus: (pageId: string, text: string) => void
@@ -73,7 +76,7 @@ function onStage(source: CanvasImageSource, css: Rect, stage: Size, dpr: number)
 /** Whether the show goes from `from` to `to` as a forward step even though `to` is the earlier page (the end of a loop). */
 const wraps = (loop: boolean, from: number, to: number, count: number): boolean => loop && from === count - 1 && to === 0
 
-export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerDown, onPointerUp, children, interactiveRef, onInteractiveStatus }: MotionStageProps) {
+export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerDown, onPointerUp, onNavigate, children, interactiveRef, onInteractiveStatus }: MotionStageProps) {
   const [ref, size] = useElementSize<HTMLDivElement>()
   const [settled, setSettled] = useState<Size>(NO_SIZE)
   const [readyIndex, setReadyIndex] = useState<number | null>(null)
@@ -81,7 +84,8 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
   const [attempt, setAttempt] = useState(0)
   const [interactive, setInteractive] = useState<FrameInteractions | null>(null)
   const [interactionStatus, setInteractionStatus] = useState('')
-  const interactionPress = useRef<{ id: string; x: number; y: number } | null>(null)
+  const [linkHovered, setLinkHovered] = useState(false)
+  const interactionPress = useRef<{ interaction: StageInteraction; x: number; y: number } | null>(null)
   const frameTime = useRef(0)
   const wakeFrame = useRef<(() => void) | null>(null)
   const frameRef = useRef<HTMLCanvasElement>(null)
@@ -239,12 +243,17 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
   const name = (page.name ?? '').trim()
   const label = t.presenter.stage(index + 1, doc.pages.length, name)
   const missing = !ready && failed === index
-  const interactiveAtEvent = (event: React.PointerEvent): string | null => {
+  const interactionAtEvent = (event: React.PointerEvent): StageInteraction | null => {
     if (!interactive || !ready || overlayLive.current) return null
     const rect = frameRef.current?.getBoundingClientRect()
     if (!rect || rect.width <= 0 || rect.height <= 0) return null
     const pageSize = getPageSize(doc, page.id)
-    return interactive.at((event.clientX - rect.left) / rect.width * pageSize.width, (event.clientY - rect.top) / rect.height * pageSize.height, frameTime.current)
+    const x = (event.clientX - rect.left) / rect.width * pageSize.width
+    const y = (event.clientY - rect.top) / rect.height * pageSize.height
+    const pageId = interactive.targetAt(x, y, frameTime.current)
+    if (pageId && doc.pages.some((candidate) => candidate.id === pageId)) return { kind: 'link', pageId }
+    const id = interactive.at(x, y, frameTime.current)
+    return id ? { kind: 'control', id } : null
   }
   /** Spins one wheel, or rolls one or more dice together, and reports the outcome here and to the presenter view. */
   const launch = (ids: readonly string[], kind: InteractiveControl['kind']): boolean => {
@@ -293,20 +302,26 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
     <div ref={ref} className={styles.stage} data-testid="present-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
       <div
         className={styles.frameBox}
-        style={{ left: css.x, top: css.y, width: css.width, height: css.height }}
+        style={{ left: css.x, top: css.y, width: css.width, height: css.height, cursor: linkHovered ? 'pointer' : undefined }}
         data-testid="present-frame-box"
+        onPointerMove={(event) => setLinkHovered(interactionAtEvent(event)?.kind === 'link')}
+        onPointerLeave={() => setLinkHovered(false)}
         onPointerDown={(event) => {
           if (event.button !== 0) return
-          const id = interactiveAtEvent(event)
-          interactionPress.current = id ? { id, x: event.clientX, y: event.clientY } : null
-          if (id) event.stopPropagation()
+          const interaction = interactionAtEvent(event)
+          interactionPress.current = interaction ? { interaction, x: event.clientX, y: event.clientY } : null
+          if (interaction) event.stopPropagation()
         }}
         onPointerUp={(event) => {
           const press = interactionPress.current
           interactionPress.current = null
           if (!press) return
           event.stopPropagation()
-          if (interactiveAtEvent(event) === press.id && Math.hypot(event.clientX - press.x, event.clientY - press.y) < 12) activate(press.id)
+          if (Math.hypot(event.clientX - press.x, event.clientY - press.y) >= 12) return
+          const interaction = interactionAtEvent(event)
+          if (!interaction || interaction.kind !== press.interaction.kind) return
+          if (interaction.kind === 'link' && press.interaction.kind === 'link' && interaction.pageId === press.interaction.pageId) onNavigate(interaction.pageId)
+          if (interaction.kind === 'control' && press.interaction.kind === 'control' && interaction.id === press.interaction.id) activate(interaction.id)
         }}
       >
         <canvas ref={frameRef} className={styles.frame} data-ready={ready} role="img" aria-label={label} data-testid="present-frame" data-page-id={page.id} />

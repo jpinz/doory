@@ -13,6 +13,7 @@ import {
 } from '@/types/document'
 import { normalizeColor } from './colors'
 import { primaryFamily } from './text/fontStack'
+import { sectionIdOf, trimSections, withSection } from './sections'
 
 export interface PageSize {
   width: number
@@ -47,25 +48,29 @@ export function addPage(doc: DoryDocument, atIndex: number, page?: DocPage): Dor
   if (doc.pages.length >= MAX_PAGES) return doc
   const pages = doc.pages.slice()
   const index = Math.max(0, Math.min(pages.length, atIndex))
-  pages.splice(index, 0, page ?? createPage())
+  const next = page ?? createPage()
+  const sectionId = sectionIdOf(doc, next) ?? sectionIdOf(doc, pages[index - 1] ?? pages[index])
+  pages.splice(index, 0, withSection(next, sectionId))
   return { ...doc, pages }
 }
 
 export function removePage(doc: DoryDocument, pageId: string): DoryDocument {
   if (doc.pages.length <= 1) return doc
   const pages = doc.pages.filter((p) => p.id !== pageId)
-  return pages.length === doc.pages.length ? doc : { ...doc, pages }
+  return pages.length === doc.pages.length ? doc : trimSections({ ...doc, pages })
 }
 
-export function movePage(doc: DoryDocument, pageId: string, toIndex: number): DoryDocument {
+export function movePage(doc: DoryDocument, pageId: string, toIndex: number, sectionId?: string | null): DoryDocument {
   const from = findPageIndex(doc, pageId)
   if (from < 0) return doc
   const to = Math.max(0, Math.min(doc.pages.length - 1, toIndex))
-  if (from === to) return doc
+  const targetSection = sectionIdOf(doc, sectionId === undefined ? doc.pages[to] : { sectionId: sectionId ?? undefined })
+  const page = withSection(doc.pages[from], targetSection)
+  if (from === to && page === doc.pages[from]) return doc
   const pages = doc.pages.slice()
-  const [moved] = pages.splice(from, 1)
-  pages.splice(to, 0, moved)
-  return { ...doc, pages }
+  pages.splice(from, 1)
+  pages.splice(to, 0, page)
+  return trimSections({ ...doc, pages })
 }
 
 export function renamePage(doc: DoryDocument, pageId: string, name: string): DoryDocument {
@@ -128,6 +133,7 @@ export function duplicatePage(doc: DoryDocument, pageId: string): DoryDocument {
     objects: cloneObjects(src.objects),
   }
   if (src.name) copy.name = `${src.name} copy`
+  delete copy.flowPosition
   return addPage(doc, index + 1, copy)
 }
 

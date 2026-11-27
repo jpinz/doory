@@ -38,6 +38,14 @@ describe('fitTemplatePages', () => {
 })
 
 describe('applyTemplate', () => {
+  it('preserves the current section when replacing or adding template slides', () => {
+    const base = design()
+    const doc = { ...base, meta: { sections: [{ id: 'round', name: 'Round 1' }] }, pages: base.pages.map((page) => ({ ...page, sectionId: 'round' })) }
+    expect(applyTemplate(doc, doc.pages[0].id, template(200, 100), 'replace')?.doc.pages[0].sectionId).toBe('round')
+    const added = applyTemplate(doc, doc.pages[0].id, template(200, 100, 2), 'add-all')
+    expect(added?.doc.pages.every((page) => page.sectionId === 'round')).toBe(true)
+  })
+
   it('replace swaps the content of the active page and keeps its id and name', () => {
     const doc = { ...design(), pages: [{ ...design().pages[0], id: 'p1', name: 'Cover' }] }
     const out = applyTemplate(doc, 'p1', template(200, 100, 3), 'replace')

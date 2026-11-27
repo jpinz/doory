@@ -103,25 +103,26 @@ describe('parseCustomSize', () => {
 describe('resolveCreateSpec / createUrl', () => {
   const spec = (query: string) => resolveCreateSpec(new URLSearchParams(query))
 
-  it('defaults to the Instagram post preset', () => {
-    expect(spec('')).toMatchObject({ kind: 'size', width: 1080, height: 1080, presetId: 'instagram-post' })
+  it('defaults to a presentation and ignores non-slide preset creation links', () => {
+    expect(spec('')).toMatchObject({ kind: 'size', width: 1920, height: 1080, presetId: 'presentation' })
+    expect(spec('preset=instagram-post')).toMatchObject({ presetId: 'presentation' })
   })
 
   it('reads presets, custom sizes and templates', () => {
-    expect(spec('preset=a4')).toMatchObject({ kind: 'size', width: 794, height: 1123, unit: 'mm', presetId: 'a4' })
+    expect(spec('preset=presentation-4-3')).toMatchObject({ kind: 'size', width: 1024, height: 768, unit: 'px', presetId: 'presentation-4-3' })
     expect(spec('w=10&h=5&unit=cm')).toMatchObject({ kind: 'size', width: 378, height: 189, unit: 'mm' })
     expect(spec('template=summer-sale')).toEqual({ kind: 'template', slug: 'summer-sale' })
   })
 
   it('ignores invalid input instead of trusting it', () => {
-    expect(spec('preset=nope')).toMatchObject({ presetId: 'instagram-post' })
-    expect(spec('w=99999&h=10')).toMatchObject({ presetId: 'instagram-post' })
-    expect(spec('w=abc&h=10')).toMatchObject({ presetId: 'instagram-post' })
+    expect(spec('preset=nope')).toMatchObject({ presetId: 'presentation' })
+    expect(spec('w=99999&h=10')).toMatchObject({ presetId: 'presentation' })
+    expect(spec('w=abc&h=10')).toMatchObject({ presetId: 'presentation' })
     expect(spec('template=../etc/passwd')).toMatchObject({ kind: 'size' })
   })
 
   it('builds URLs that resolve back to the same spec', () => {
-    expect(resolveCreateSpec(new URL(createUrl({ presetId: 'poster' }), 'http://x').searchParams)).toMatchObject({ presetId: 'poster' })
+    expect(resolveCreateSpec(new URL(createUrl({ presetId: 'presentation' }), 'http://x').searchParams)).toMatchObject({ presetId: 'presentation' })
     expect(resolveCreateSpec(new URL(createUrl({ width: 300, height: 200, unit: 'mm' }), 'http://x').searchParams)).toMatchObject({ width: 1134, height: 756, unit: 'mm' })
     expect(createUrl({ template: 'x' })).toBe('/create?template=x')
   })

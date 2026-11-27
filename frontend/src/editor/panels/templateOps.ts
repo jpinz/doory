@@ -10,6 +10,7 @@ import { type DocPage, type DoryDocument, MAX_PAGES } from '@/types/document'
 import { clampSize, cloneObjects, findPageIndex, pageSize } from '../engine/docOps'
 import { resizeDocument } from '../engine/magicResize'
 import { type PageSize, isUniform, normalizeSizes, sameSize } from '../engine/pageSizes'
+import { sectionIdOf, withSection } from '../engine/sections'
 
 /**
  * `replace`: the first template page takes the place of the active page and is scaled to its size.
@@ -61,7 +62,7 @@ export function applyTemplate(doc: DoryDocument, activePageId: string, template:
     const resize = mode === 'replace-resize' || (empty && !sameSize(currentSize, target))
     const size = resize ? target : currentSize
     const first = resize ? ownSizeTemplatePages(template)[0] : fitTemplatePages(template, size)[0]
-    const merged: DocPage = { ...first, id: current.id, width: size.width, height: size.height }
+    const merged: DocPage = withSection({ ...first, id: current.id, width: size.width, height: size.height }, sectionIdOf(doc, current))
     if (current.name) merged.name = current.name
     // An empty design of one size takes the template's size on every page, not on one page only.
     const wholeDesign = resize && empty && isUniform(doc)
@@ -72,6 +73,7 @@ export function applyTemplate(doc: DoryDocument, activePageId: string, template:
   const room = MAX_PAGES - doc.pages.length
   const pages = ownSizeTemplatePages(template)
   const incoming = (mode === 'add' ? pages.slice(0, 1) : pages).slice(0, Math.max(0, room))
+    .map((page) => withSection(page, sectionIdOf(doc, doc.pages[index])))
   if (incoming.length === 0) return null
   const next = doc.pages.slice()
   next.splice(index + 1, 0, ...incoming)

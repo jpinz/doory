@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { canLink, type ChannelLike, isSessionId, openLink, type PagePreview, type PresenterLink, type ViewCommand } from '../channel'
+import { canLink, type ChannelLike, isSessionId, newSessionId, openLink, type PagePreview, type PresenterLink, type ViewCommand } from '../channel'
 import type { SlideshowState } from '../machine'
 import { type ReceivedFrame, SIGNAL_LOST_MS } from './model'
 
@@ -38,7 +38,7 @@ const HELLO_EVERY_MS = 1500
  * The presenter view's side of the conversation (see `channel.ts`): says hello until the presentation answers, keeps
  * the latest state and the pictures it is sent, notices when the presentation ends or goes quiet.
  */
-export function useShow(session: string | null, createChannel?: (name: string) => ChannelLike | null): Show {
+export function useShow(session: string | null, createChannel?: (name: string) => ChannelLike | null, maxFrames = MAX_FRAMES): Show {
   const initial: Phase = !isSessionId(session) ? 'invalid' : createChannel === undefined && !canLink() ? 'unsupported' : 'connecting'
   const [phase, setPhase] = useState<Phase>(initial)
   const [show, setShow] = useState<ShowSnapshot | null>(null)
@@ -60,6 +60,7 @@ export function useShow(session: string | null, createChannel?: (name: string) =
     const link = openLink(session, 'view', createChannel)
     linkRef.current = link
     if (!link) return
+    const viewId = newSessionId()
     const stored = urls.current
     const off = link.subscribe((message) => {
       lastSeen.current = performance.now()
@@ -76,11 +77,13 @@ export function useShow(session: string | null, createChannel?: (name: string) =
           setInteractiveStatus({ pageId: message.pageId, text: message.text })
           break
         case 'frame': {
+          // Every view hears every picture: keep only the ones this window asked for.
+          if (!asked.current.has(`${message.pageId}@${message.width}`)) break
           const url = URL.createObjectURL(message.image)
           const same = stored.findIndex((f) => f.pageId === message.pageId && f.width === message.width)
           if (same >= 0) URL.revokeObjectURL(stored.splice(same, 1)[0].url)
           stored.push({ pageId: message.pageId, width: message.width, url })
-          while (stored.length > MAX_FRAMES) URL.revokeObjectURL(stored.shift()?.url ?? '')
+          while (stored.length > maxFrames) URL.revokeObjectURL(stored.shift()?.url ?? '')
           const next = new Map<string, ReceivedFrame[]>()
           for (const f of stored) next.set(f.pageId, [...(next.get(f.pageId) ?? []), { width: f.width, url: f.url }])
           setFrames(next)
@@ -94,14 +97,14 @@ export function useShow(session: string | null, createChannel?: (name: string) =
       }
     })
     const hello = (): void => {
-      if (phaseRef.current === 'connecting') link.send({ kind: 'hello' })
+      if (phaseRef.current === 'connecting') link.send({ kind: 'hello', viewId })
     }
     hello()
     const helloTimer = window.setInterval(hello, HELLO_EVERY_MS)
     const watchdog = window.setInterval(() => {
       if (phaseRef.current === 'live' && performance.now() - lastSeen.current > SIGNAL_LOST_MS) setLost(true)
     }, 1000)
-    const leave = (): void => link.send({ kind: 'bye' })
+    const leave = (): void => link.send({ kind: 'bye', viewId })
     window.addEventListener('pagehide', leave)
     return () => {
       window.removeEventListener('pagehide', leave)
@@ -113,7 +116,7 @@ export function useShow(session: string | null, createChannel?: (name: string) =
       linkRef.current = null
       for (const f of stored.splice(0)) URL.revokeObjectURL(f.url)
     }
-  }, [session, createChannel, initial])
+  }, [session, createChannel, initial, maxFrames])
 
   const send = useCallback((command: ViewCommand) => linkRef.current?.send({ kind: 'command', command }), [])
   const request = useCallback(

@@ -38,25 +38,25 @@ beforeEach(async () => {
 
 describe('/create', () => {
   it('guests get a local design from a preset and land in /local/:id', async () => {
-    const { router } = renderApp('/create?preset=a4')
+    const { router } = renderApp('/create?preset=presentation-4-3')
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/local\/[0-9a-f-]{36}$/))
     const saved = await listLocalDesigns()
     expect(saved).toHaveLength(1)
-    expect(saved[0]).toMatchObject({ width: 794, height: 1123 })
+    expect(saved[0]).toMatchObject({ width: 1024, height: 768 })
     const stored = await getLocalDesign(saved[0].id)
-    expect(stored?.document.meta?.presetId).toBe('a4')
-    expect(stored?.document.unit).toBe('mm')
+    expect(stored?.document.meta?.presetId).toBe('presentation-4-3')
+    expect(stored?.document.unit).toBe('px')
     expect(await screen.findByTestId('editor')).toHaveAttribute('data-mode', 'guest')
   })
 
-  it('defaults to the Instagram post size and honours custom sizes', async () => {
+  it('defaults to 16:9 presentation slides and honours custom slide sizes', async () => {
     const first = renderApp('/create')
     await waitFor(() => expect(first.router.state.location.pathname).toMatch(/^\/local\//))
     first.unmount()
     const second = renderApp('/create?w=30&h=20&unit=cm')
     await waitFor(() => expect(second.router.state.location.pathname).toMatch(/^\/local\//))
     const sizes = (await listLocalDesigns()).map((design) => `${design.width}x${design.height}`).sort()
-    expect(sizes).toEqual(['1080x1080', '1134x756'])
+    expect(sizes).toEqual(['1134x756', '1920x1080'])
   })
 
   it('guests starting from a template copy its document locally', async () => {
@@ -90,7 +90,7 @@ describe('/create', () => {
       ],
     })
     await waitFor(() => expect(router.state.location.pathname).toBe('/design/server-1'))
-    expect(bodies[0]).toMatchObject({ width: 1728, height: 2304, preset: 'poster' })
+    expect(bodies[0]).toMatchObject({ width: 1920, height: 1080, preset: 'presentation' })
     expect(await listLocalDesigns()).toEqual([])
   })
 

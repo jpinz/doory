@@ -290,6 +290,25 @@ describe('EditorEngine', () => {
     engine.dispose()
   })
 
+  it('saves slide flow properties through reload and keeps their changes undoable', async () => {
+    const { engine, pageId } = await setup()
+    const target = engine.pages.add() ?? ''
+    engine.pages.setPresentationNext(pageId, 'missing')
+    expect(engine.getPage(pageId)?.presentationNext).toBeUndefined()
+    engine.pages.setPresentationNext(pageId, target)
+    engine.pages.setFlowPosition(pageId, { x: 320, y: 480 })
+    const saved = JSON.parse(JSON.stringify(engine.getDocument()))
+    await engine.undo()
+    expect(engine.getPage(pageId)?.flowPosition).toBeUndefined()
+    await engine.loadDocument(saved)
+    expect(engine.getPage(pageId)).toMatchObject({ presentationNext: target, flowPosition: { x: 320, y: 480 } })
+    engine.pages.duplicate(pageId)
+    expect(engine.state.doc.pages[1].flowPosition).toBeUndefined()
+    engine.pages.setPresentationNext(pageId, undefined)
+    expect(engine.getPage(pageId)?.presentationNext).toBeUndefined()
+    engine.dispose()
+  })
+
   it('changes background and applies it to all pages', async () => {
     const { engine, pageId } = await setup()
     engine.pages.add()
@@ -557,6 +576,18 @@ describe('EditorEngine', () => {
     expect(objectsOf(engine)[0].link).toEqual({ url: 'https://example.com/a%20b' })
     engine.style.setLink(null)
     expect(objectsOf(engine)[0].link).toBeUndefined()
+    engine.dispose()
+  })
+
+  it('sets only valid presentation destinations on selected objects', async () => {
+    const { engine, pageId } = await setup()
+    await engine.insert.shape('rect')
+    engine.style.setPresentationLink('missing-slide')
+    expect(objectsOf(engine)[0].presentationLink).toBeUndefined()
+    engine.style.setPresentationLink(pageId)
+    expect(objectsOf(engine)[0].presentationLink).toEqual({ pageId })
+    engine.style.setPresentationLink(null)
+    expect(objectsOf(engine)[0].presentationLink).toBeUndefined()
     engine.dispose()
   })
 

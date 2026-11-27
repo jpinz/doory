@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from apps.designs.serializers import DesignSerializer
 from apps.designs.services import create_from_template
 
-from .filters import TemplateFilter
+from .filters import TemplateFilter, presentation_preset_slugs
 from .models import Template, TemplateCategory
 from .serializers import TemplateCategorySerializer, TemplateDetailSerializer, TemplateSummarySerializer
 
@@ -38,8 +38,11 @@ class TemplateCategoryListView(PublicCatalogView, generics.ListAPIView):
     filter_backends: list = []
 
     def get_queryset(self):
+        published = Q(templates__is_published=True)
+        if self.request.query_params.get("presentation_only", "").lower() in ("true", "1"):
+            published &= Q(templates__preset__in=presentation_preset_slugs())
         return TemplateCategory.objects.annotate(
-            template_count=Count("templates", filter=Q(templates__is_published=True))
+            template_count=Count("templates", filter=published)
         ).order_by("sort_order", "name", "id")
 
 

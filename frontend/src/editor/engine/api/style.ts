@@ -642,6 +642,15 @@ export class StyleApi {
     }, safe ? t.history.addLink : t.history.removeLink)
   }
 
+  /** Sets or clears an object's destination slide for presentations. */
+  setPresentationLink(pageId: string | null): void {
+    const page = pageId === null ? null : this.engine.state.doc.pages.find((candidate) => candidate.id === pageId)
+    if (pageId !== null && !page) return
+    this.each((o) => {
+      asDory(o).presentationLink = page ? { pageId: page.id } : undefined
+    }, page ? t.presentationLink.apply : t.presentationLink.remove)
+  }
+
   /** Tags the selected object as a template field, or clears the tag (`null`). An invalid key is ignored. */
   setField(field: DocField | null): void {
     const tag = field === null ? null : readField(field)

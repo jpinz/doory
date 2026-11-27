@@ -3,7 +3,7 @@ import { http } from './client'
 import { toList } from './pagination'
 
 export const templatesApi = {
-  categories: async (signal?: AbortSignal): Promise<TemplateCategory[]> => toList(await http.get<TemplateCategory[] | Page<TemplateCategory>>('/template-categories/', { signal })),
+  categories: async (signal?: AbortSignal, presentationOnly = false): Promise<TemplateCategory[]> => toList(await http.get<TemplateCategory[] | Page<TemplateCategory>>('/template-categories/', { signal, query: presentationOnly ? { presentation_only: true } : undefined })),
   list: (query: TemplateQuery = {}, signal?: AbortSignal) => http.get<Page<TemplateSummary>>('/templates/', { query, signal }),
   get: (slug: string, signal?: AbortSignal) => http.get<TemplateDetail>(`/templates/${encodeURIComponent(slug)}/`, { signal }),
   /** Creates an account design from the template (login required). */

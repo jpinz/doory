@@ -22,28 +22,24 @@ describe('landing page', () => {
     const hero = await screen.findByRole('heading', { level: 1 })
     expect(hero).toHaveTextContent('Make something lovely today.')
     expect(screen.getByText(/Free, and no sign-up to start\./)).toBeInTheDocument()
-    const cta = screen.getByRole('link', { name: 'Create a design' })
+    const cta = screen.getByRole('link', { name: 'Create a presentation' })
     expect(cta).toHaveAttribute('href', '/create')
-    for (const [name, slug] of [
-      [/sale post template/, 'bold-sale-announcement'],
-      [/event story template/, 'rooftop-event-story'],
-      [/tour poster template/, 'night-bloom-concert-poster'],
-    ] as const) {
-      expect(screen.getByRole('link', { name })).toHaveAttribute('href', `/templates/${slug}`)
+    for (const name of ['Create a game board', 'Create a question slide', 'Create an answer slide']) {
+      expect(screen.getByRole('link', { name })).toHaveAttribute('href', '/create?preset=presentation')
     }
   })
 
   it('offers size presets that deep-link into /create', async () => {
     renderApp('/')
-    const list = await screen.findByRole('list', { name: 'Or start with a size' })
-    expect(within(list).getByRole('link', { name: 'Instagram Post' })).toHaveAttribute('href', '/create?preset=instagram-post')
-    expect(within(list).getByRole('link', { name: /Poster/ })).toHaveAttribute('href', '/create?preset=poster')
+    const list = await screen.findByRole('list', { name: 'Choose a slide format' })
+    expect(within(list).getByRole('link', { name: /Presentation \(16:9\)/ })).toHaveAttribute('href', '/create?preset=presentation')
+    expect(within(list).queryByRole('link', { name: /Poster|Instagram/ })).not.toBeInTheDocument()
   })
 
   it('opens the custom size dialog and navigates to /create with the converted size', async () => {
     const { router } = renderApp('/')
-    await userEvent.click(await screen.findByRole('button', { name: 'Custom size…' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Create a design' })
+    await userEvent.click(await screen.findByRole('button', { name: 'Custom slide size' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Create a presentation' })
     await userEvent.selectOptions(within(dialog).getByLabelText('Unit'), 'in')
     const width = within(dialog).getByLabelText('Width')
     await userEvent.clear(width)
@@ -51,7 +47,7 @@ describe('landing page', () => {
     const height = within(dialog).getByLabelText('Height')
     await userEvent.clear(height)
     await userEvent.type(height, '7')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Create design' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create presentation' }))
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/local\//))
     const [created] = await listLocalDesigns()
     expect(created).toMatchObject({ width: 480, height: 672 })
@@ -59,13 +55,13 @@ describe('landing page', () => {
 
   it('validates custom sizes and keeps the aspect ratio when locked', async () => {
     renderApp('/')
-    await userEvent.click(await screen.findByRole('button', { name: 'Custom size…' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Custom slide size' }))
     const dialog = await screen.findByRole('dialog')
     const width = within(dialog).getByLabelText('Width')
     const height = within(dialog).getByLabelText('Height')
     await userEvent.clear(width)
     await userEvent.type(width, '30000')
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Create design' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create presentation' }))
     expect(await within(dialog).findByText(/at most 20000 px/)).toBeInTheDocument()
     await userEvent.clear(width)
     await userEvent.type(width, '200')
@@ -79,22 +75,20 @@ describe('landing page', () => {
 
   it('switches the unit while converting the numbers', async () => {
     renderApp('/')
-    await userEvent.click(await screen.findByRole('button', { name: 'Custom size…' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Custom slide size' }))
     const dialog = await screen.findByRole('dialog')
     await userEvent.selectOptions(within(dialog).getByLabelText('Unit'), 'in')
-    expect(within(dialog).getByLabelText('Width')).toHaveValue('11.25')
+    expect(within(dialog).getByLabelText('Width')).toHaveValue('20')
   })
 
-  it('filters the preset list by search', async () => {
+  it('offers only slide formats in the creation dialog', async () => {
     renderApp('/')
-    await userEvent.click(await screen.findByRole('button', { name: 'Custom size…' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Custom slide size' }))
     const dialog = await screen.findByRole('dialog')
-    await userEvent.type(within(dialog).getByRole('searchbox'), 'poster')
-    expect(within(dialog).getByRole('button', { name: /Poster \(18 × 24 in\)/ })).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Slide formats' }))
+    expect(within(dialog).getByRole('button', { name: /Presentation \(16:9\)/ })).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: /Instagram Post/ })).not.toBeInTheDocument()
-    await userEvent.clear(within(dialog).getByRole('searchbox'))
-    await userEvent.type(within(dialog).getByRole('searchbox'), 'zzzz')
-    expect(within(dialog).getByText(/No size matches/)).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: /Poster/ })).not.toBeInTheDocument()
   })
 
   it('has landmarks, a skip link and links to the open-source repository', async () => {

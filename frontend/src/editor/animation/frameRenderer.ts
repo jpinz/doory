@@ -81,6 +81,7 @@ export interface FrameInteractions {
   readonly controls: readonly InteractiveControl[]
   readonly active: boolean
   at(x: number, y: number, tMs: number): string | null
+  targetAt(x: number, y: number, tMs: number): string | null
   /** `value` is the number rolled on a numbered die. */
   activate(id: string, reduced: boolean, done: (text: string, value?: number) => void): boolean
 }
@@ -554,12 +555,36 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   const interactions = interactiveParts.flatMap((part) => part.objects)
   const wheels = interactions.filter((object): object is DoryWheel => object instanceof DoryWheel)
   const dice = interactions.filter((object): object is DoryDie => object instanceof DoryDie)
-  const hitContext = interactions.length > 0 ? context2d(createCanvas(1, 1)) : null
+  const hasLinks = targets.some(({ doc }) => typeof doc.presentationLink?.pageId === 'string')
+  const hitContext = interactions.length > 0 || hasLinks ? context2d(createCanvas(1, 1)) : null
   let last: Readonly<Sample>[] | null = null
   let disposed = false
+  const hitAt = (x: number, y: number, tMs: number): { object: FabricObject; doc: DocObject; local: Point } | null => {
+    if (disposed || !hitContext) return null
+    const point = new Point(x, y)
+    for (let i = targets.length - 1; i >= 0; i--) {
+      const { object, doc, box } = targets[i]
+      const sample = sampleObject(doc, tMs, size, box)
+      const clip = options.media ? readClip(doc) : null
+      if (clip && !clipShownAt(clip, tMs)) continue
+      if (!object.visible || object.opacity === 0 || !sample.visible || sample.opacity <= 0.001 || sample.scaleX === 0 || sample.scaleY === 0) continue
+      hitContext.save()
+      hitContext.setTransform(1, 0, 0, 1, 0, 0)
+      clipTo(hitContext, sample, box, 1)
+      const clipped = !!sample.clip && !hitContext.isPointInPath(x, y)
+      transformTo(hitContext, sample, box, 1)
+      hitContext.translate(-box.cx, -box.cy)
+      const matrix = hitContext.getTransform().inverse()
+      hitContext.restore()
+      if (clipped) continue
+      const local = point.transform([matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f])
+      if (object.containsPoint(local)) return { object, doc, local }
+    }
+    return null
+  }
 
   return {
-    interactive: interactions.length > 0 ? {
+    interactive: interactions.length > 0 || hasLinks ? {
       controls: [
         ...wheels.map((wheel): InteractiveControl => ({ id: asDory(wheel).id!, kind: 'wheel', label: asDory(wheel).name || t.wheel.name })),
         ...dice.map((die): InteractiveControl => ({ id: asDory(die).id!, kind: 'die', label: asDory(die).name || t.dice.name })),
@@ -568,29 +593,12 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
         return interactions.some(interactionActive)
       },
       at(x, y, tMs) {
-        if (disposed || !hitContext) return null
-        const point = new Point(x, y)
-        for (let i = targets.length - 1; i >= 0; i--) {
-          const { object, doc, box } = targets[i]
-          const sample = sampleObject(doc, tMs, size, box)
-          const clip = options.media ? readClip(doc) : null
-          if (clip && !clipShownAt(clip, tMs)) continue
-          if (!object.visible || object.opacity === 0 || !sample.visible || sample.opacity <= 0.001 || sample.scaleX === 0 || sample.scaleY === 0) continue
-          hitContext.save()
-          hitContext.setTransform(1, 0, 0, 1, 0, 0)
-          clipTo(hitContext, sample, box, 1)
-          const clipped = !!sample.clip && !hitContext.isPointInPath(x, y)
-          transformTo(hitContext, sample, box, 1)
-          hitContext.translate(-box.cx, -box.cy)
-          const matrix = hitContext.getTransform().inverse()
-          hitContext.restore()
-          if (clipped) continue
-          const local = point.transform([matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f])
-          if (!object.containsPoint(local)) continue
-          const target = interactiveAt([object], local)
-          return target ? asDory(target).id ?? null : null
-        }
-        return null
+        const hit = hitAt(x, y, tMs)
+        const target = hit ? interactiveAt([hit.object], hit.local) : null
+        return target ? asDory(target).id ?? null : null
+      },
+      targetAt(x, y, tMs) {
+        return hitAt(x, y, tMs)?.doc.presentationLink?.pageId ?? null
       },
       activate(id, reduced, done) {
         if (disposed) return false

@@ -49,6 +49,8 @@ export interface DoryProps {
   die?: DieSpec
   /** Stable cell label scoped to the containing image grid. */
   gridCellId?: string
+  /** Slide this object opens when clicked during a presentation. */
+  presentationLink?: { pageId: string }
   /** On a picture that fills a placeholder: the frame it stays inside (see objects/slot.ts). */
   slot?: SlotSpec
   link?: { url: string }

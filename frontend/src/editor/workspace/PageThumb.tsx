@@ -38,7 +38,7 @@ export const PageThumb = memo(function PageThumb({ page, index, active, variant,
   const url = usePageSnapshot(page, size, seen)
   const fit = fitBox(size, STRIP_BOX.width, STRIP_BOX.height)
   const box = { width: Math.max(MIN_SIDE, fit.width), height: Math.max(MIN_SIDE, fit.height) }
-  const label = page.name?.trim() || t.workspace.page(index + 1)
+  const label = page.name?.trim() || `${t.sections.slide} ${index + 1}`
   return (
     <div
       ref={seenRef}
@@ -54,7 +54,7 @@ export const PageThumb = memo(function PageThumb({ page, index, active, variant,
           type="button"
           className={styles.thumb}
           style={variant === 'strip' ? box : { aspectRatio: `${size.width / size.height}` }}
-          aria-label={`${label}${active ? ', current page' : ''}`}
+          aria-label={`${label}${active ? `, ${t.sections.current}` : ''}`}
           aria-current={active || undefined}
           onClick={onSelect}
           onKeyDown={(e) => {

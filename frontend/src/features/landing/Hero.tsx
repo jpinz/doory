@@ -6,7 +6,7 @@ import bunny from '@/assets/bunny-sticker.webp'
 import { LazyCreateDesignDialog } from '@/features/create/LazyCreateDesignDialog'
 import { PresetIcon } from '@/features/PresetIcon'
 import { createUrl } from '@/features/presets'
-import { quickPresets, useSizePresets } from '@/lib/sizePresets'
+import { presentationCatalogue, useSizePresets } from '@/lib/sizePresets'
 import { Button, LinkButton } from '@/ui'
 import { Doodles } from './Doodles'
 import { HeroCards } from './HeroCards'
@@ -16,7 +16,7 @@ const PERKS = ['No watermark', 'No ads', 'Open source']
 
 export function Hero() {
   const [customOpen, setCustomOpen] = useState(false)
-  const catalogue = useSizePresets()
+  const catalogue = presentationCatalogue(useSizePresets())
   return (
     <section className={styles.hero} aria-labelledby="hero-title">
       <Doodles />
@@ -40,13 +40,13 @@ export function Hero() {
         </em>{' '}
         {msg("today.")}</h1>
       <p className={styles.lead}>
-        {msg("Cards, posts, slides, posters and little logos, made right in your browser. Free, and no sign-up to start.")}</p>
+        {msg("Interactive presentations, slide decks and classroom games, made right in your browser. Free, and no sign-up to start.")}</p>
 
       <HeroCards />
 
       <div className={styles.create}>
         <LinkButton to="/create" size="lg" rightIcon={<PenLine size={18} aria-hidden="true" />}>
-          {msg("Create a design")}</LinkButton>
+          {msg("Create a presentation")}</LinkButton>
         <p className={styles.note} aria-hidden="true">
           {msg("it’s free, promise!")}<svg viewBox="0 0 60 44">
             <path d="M50 4 C 54 22, 40 36, 8 34 M8 34 l10 -8 M8 34 l9 8" />
@@ -61,9 +61,9 @@ export function Hero() {
 
       <div className={styles.sizes}>
         <p className={styles.sizesLabel} id="hero-sizes">
-          {msg("Or start with a size")}</p>
+          {msg("Choose a slide format")}</p>
         <ul className={styles.chips} aria-labelledby="hero-sizes">
-          {quickPresets(catalogue).map((preset) => (
+          {catalogue.presets.map((preset) => (
             <li key={preset.id}>
               <Link className={styles.chip} to={createUrl({ presetId: preset.id })}>
                 <PresetIcon preset={preset} size={15} />
@@ -73,7 +73,7 @@ export function Hero() {
           ))}
           <li>
             <Button variant="ghost" size="sm" className={styles.customChip} onClick={() => setCustomOpen(true)}>
-              {msg("Custom size…")}</Button>
+              {msg("Custom slide size")}</Button>
           </li>
         </ul>
       </div>

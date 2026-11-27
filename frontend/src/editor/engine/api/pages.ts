@@ -9,6 +9,7 @@ import {
   movePage,
   removePage,
   renamePage,
+  replacePage,
   setPageBackground,
 } from '../docOps'
 import type { EditorEngine } from '../editor'
@@ -24,6 +25,7 @@ import { transitionPresets } from '../../animation/presets'
 import { animationStrings as anim } from '../../animation/strings'
 import { setAllDurations, setPageDuration, setPageNotes } from '../../presenter/pageProps'
 import { t } from '../../strings'
+import { moveRun, moveToSection, removeSection, renameSection, startSection } from '../sections'
 
 /** Which pages a resize reaches: the one page (`page`) or every page of the design (`all`). */
 export type ResizeScope = 'page' | 'all'
@@ -86,8 +88,8 @@ export class PagesApi {
     this.engine.announce(t.announce.pageDeleted)
   }
 
-  move(pageId: string, toIndex: number): void {
-    const moved = movePage(this.doc, pageId, toIndex)
+  move(pageId: string, toIndex: number, sectionId?: string | null): void {
+    const moved = movePage(this.doc, pageId, toIndex, sectionId)
     if (moved === this.doc) return
     const next = normalizeSizes(moved)
     this.engine.applyDocument(next, { label: t.history.movePage, activePageId: pageId })
@@ -101,6 +103,33 @@ export class PagesApi {
   rename(pageId: string, name: string): void {
     const next = renamePage(this.doc, pageId, name)
     if (next !== this.doc) this.engine.applyDocument(next, { label: t.history.renamePage, coalesceKey: `rename:${pageId}` })
+  }
+
+  startSection(pageId: string, name: string): void {
+    if (this.engine.readOnly) return
+    const next = startSection(this.doc, pageId, name)
+    if (next !== this.doc) this.engine.applyDocument(next, { label: t.sections.add, activePageId: pageId })
+  }
+
+  renameSection(sectionId: string, name: string): void {
+    if (this.engine.readOnly) return
+    const next = renameSection(this.doc, sectionId, name)
+    if (next !== this.doc) this.engine.applyDocument(next, { label: t.sections.rename, coalesceKey: `section:${sectionId}` })
+  }
+
+  removeSection(sectionId: string): void {
+    if (this.engine.readOnly) return
+    const next = removeSection(this.doc, sectionId)
+    if (next !== this.doc) this.engine.applyDocument(next, { label: t.sections.remove })
+  }
+
+  moveToSection(pageId: string, sectionId: string | null): void {
+    if (this.engine.readOnly) return
+    const next = moveToSection(this.doc, pageId, sectionId)
+    if (next !== this.doc) {
+      this.engine.applyDocument(next, { label: t.sections.move, activePageId: pageId })
+      this.engine.view.scrollToPage(pageId)
+    }
   }
 
   setBackground(pageId: string, background: PageBackground, coalesceKey?: string): void {
@@ -240,6 +269,54 @@ export class PagesApi {
     const next = setAllPageTransitions(this.doc, clean)
     if (next === this.doc) return
     this.engine.applyDocument(next, { label: clean ? anim.history.transitionAll : anim.history.removeTransitionAll })
+  }
+
+  setPresentationNext(pageId: string, target: string | null | undefined): void {
+    if (this.engine.readOnly) return
+    const page = this.doc.pages.find((candidate) => candidate.id === pageId)
+    if (!page || page.presentationNext === target) return
+    if (typeof target === 'string' && (target === pageId || !this.doc.pages.some((candidate) => candidate.id === target))) return
+    const next = { ...page }
+    if (target === undefined) delete next.presentationNext
+    else next.presentationNext = target
+    this.engine.applyDocument(replacePage(this.doc, next), { label: t.flowBoard.changeNext })
+  }
+
+  /** Moves a whole track of slides earlier or later in the deck, keeping its section. */
+  moveRun(firstId: string, count: number, beforeId: string | null): void {
+    if (this.engine.readOnly) return
+    const next = moveRun(this.doc, firstId, count, beforeId)
+    if (next !== this.doc) this.engine.applyDocument(normalizeSizes(next), { label: t.flowBoard.moveSection, activePageId: firstId })
+  }
+
+  /** Moves several Flow cards in one undo step (a dragged section frame). */
+  setFlowPositions(positions: ReadonlyMap<string, { x: number; y: number }>): void {
+    if (this.engine.readOnly) return
+    let changed = false
+    const pages = this.doc.pages.map((page) => {
+      const position = positions.get(page.id)
+      if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return page
+      const flowPosition = {
+        x: Math.max(0, Math.min(10_000, Math.round(position.x))),
+        y: Math.max(0, Math.min(10_000, Math.round(position.y))),
+      }
+      if (page.flowPosition?.x === flowPosition.x && page.flowPosition?.y === flowPosition.y) return page
+      changed = true
+      return { ...page, flowPosition }
+    })
+    if (changed) this.engine.applyDocument({ ...this.doc, pages }, { label: t.flowBoard.moveSection })
+  }
+
+  setFlowPosition(pageId: string, position: { x: number; y: number }): void {
+    if (this.engine.readOnly || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return
+    const page = this.doc.pages.find((candidate) => candidate.id === pageId)
+    if (!page) return
+    const flowPosition = {
+      x: Math.max(0, Math.min(10_000, Math.round(position.x))),
+      y: Math.max(0, Math.min(10_000, Math.round(position.y))),
+    }
+    if (page.flowPosition?.x === flowPosition.x && page.flowPosition?.y === flowPosition.y) return
+    this.engine.applyDocument(replacePage(this.doc, { ...page, flowPosition }), { label: t.flowBoard.moveSlide, coalesceKey: `flow:${pageId}` })
   }
 
   activate(pageId: string, scroll = true): void {

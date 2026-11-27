@@ -11,13 +11,14 @@ const parseNumber = (raw: string): number => Number.parseFloat(raw.replace(',', 
 export interface CustomSizeFormProps {
   onSubmit(size: { width: number; height: number; unit: CustomUnit }): void
   submitLabel?: string
+  initialSize?: { width: number; height: number }
 }
 
 /** Width × height in px / mm / cm / in with an aspect-ratio lock. Values are validated against 1–20 000 px. */
-export function CustomSizeForm({ onSubmit, submitLabel = 'Create design' }: CustomSizeFormProps) {
+export function CustomSizeForm({ onSubmit, submitLabel = 'Create design', initialSize = { width: 1080, height: 1080 } }: CustomSizeFormProps) {
   const [unit, setUnit] = useState<CustomUnit>('px')
-  const [width, setWidth] = useState('1080')
-  const [height, setHeight] = useState('1080')
+  const [width, setWidth] = useState(String(initialSize.width))
+  const [height, setHeight] = useState(String(initialSize.height))
   const [locked, setLocked] = useState(false)
   const [ratio, setRatio] = useState<number | null>(null)
   const [error, setError] = useState<{ field: 'width' | 'height'; message: string } | null>(null)

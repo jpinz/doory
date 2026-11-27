@@ -131,7 +131,7 @@ export function Workspace({ stripOpen, onToggleStrip }: WorkspaceProps) {
 
   const updateLive = useCallback(() => {
     const scroller = scrollRef.current
-    if (!scroller) return
+    if (!scroller || scroller.clientWidth === 0 || scroller.clientHeight === 0) return
     const ids = new Set(visiblePageIds(layoutRef.current, scroller.scrollTop, scroller.clientHeight, scroller.clientHeight * 0.75))
     if (ids.size === 0 && layoutRef.current.slots[0]) ids.add(layoutRef.current.slots[0].id)
     setLive((cur) => (sameSet(cur, ids) ? cur : ids))

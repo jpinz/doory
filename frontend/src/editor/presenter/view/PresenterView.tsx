@@ -4,7 +4,7 @@
  * no document and loads no fonts: everything arrives over the channel (see `../channel.ts`), pictures included, so it
  * works the same for guests, shared links and designs of any size.
  */
-import { ChevronLeft, ChevronRight, MonitorOff, Minus, Pause, Play, Plus, Repeat, RotateCcw, Square } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MonitorOff, Minus, Pause, Play, Plus, Repeat, RotateCcw, Square, Workflow } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { t } from '../../strings'
 import type { ChannelLike, PagePreview, PreviewBox } from '../channel'
@@ -12,6 +12,7 @@ import { fitContain } from '../fit'
 import { actionForKey, isActivationKey } from '../keymap'
 import { formatClock } from '../timing'
 import { useElementSize } from '../useElementSize'
+import { openFlowMapWindow } from '../viewWindow'
 import { bestFrame, configOf, extrapolate, frameWidthFor, pageClock, VIEW_TICK_MS } from './model'
 import { type Show, useShow } from './useShow'
 import styles from './PresenterView.module.css'
@@ -85,6 +86,7 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
   // Outlined in the current picture: what a button is pointed at or focused on, else what was last rolled or spun.
   const [aimed, setAimed] = useState<readonly string[] | null>(null)
   const [used, setUsed] = useState<{ pageId: string; ids: readonly string[] } | null>(null)
+  const [mapBlocked, setMapBlocked] = useState(false)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(performance.now()), VIEW_TICK_MS)
@@ -155,7 +157,8 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
   const count = show.pages.length
   const index = Math.min(state.index, count - 1)
   const page = show.pages[index]
-  const nextPage = state.ended || index + 1 >= count ? (state.loop && !state.ended ? show.pages[0] : undefined) : show.pages[index + 1]
+  const nextIndex = config.nextIndices?.[index] ?? (state.loop ? 0 : null)
+  const nextPage = state.ended || nextIndex === null ? undefined : show.pages[nextIndex]
   const clock = pageClock(config, state)
   const running = state.autoAdvance && !state.paused
   const finished = phase === 'ended'
@@ -188,6 +191,11 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
       {lost && !finished ? (
         <p className={styles.lost} role="alert" data-testid="view-lost">
           {t.presenterView.lost}
+        </p>
+      ) : null}
+      {mapBlocked ? (
+        <p className={styles.lost} role="alert" data-testid="view-map-blocked">
+          {t.presenterView.flowMapBlocked}
         </p>
       ) : null}
 
@@ -268,6 +276,28 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
           <span>{t.presenter.next}</span>
           <ChevronRight size={18} aria-hidden="true" />
         </button>
+        {page.actions?.length ? (
+          <>
+            <span className={styles.label}>{t.presenterView.interactions}</span>
+            {page.actions.map((action, actionIndex) => (
+              <button
+                key={`${action.pageId}-${actionIndex}`}
+                type="button"
+                className={`${styles.ctl} ${styles.action}`}
+                disabled={finished || state.ended}
+                aria-label={action.label}
+                title={action.label}
+                data-testid={`view-action-${actionIndex}`}
+                onClick={() => {
+                  const targetIndex = show.pages.findIndex((candidate) => candidate.id === action.pageId)
+                  if (targetIndex >= 0) send({ action: 'follow', index: targetIndex })
+                }}
+              >
+                <span>{action.label}</span>
+              </button>
+            ))}
+          </>
+        ) : null}
         <span className={styles.gap} aria-hidden="true" />
         <button type="button" className={styles.ctl} disabled={finished} data-testid="view-pause" onClick={() => send({ action: 'toggle-pause' })}>
           {running ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
@@ -286,6 +316,17 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
           <span>{t.presenter.blackout}</span>
         </button>
         <span className={styles.gap} aria-hidden="true" />
+        <button
+          type="button"
+          className={styles.ctl}
+          disabled={finished}
+          title={t.presenterView.flowMapOpen}
+          data-testid="view-flow-map"
+          onClick={() => setMapBlocked(!session || openFlowMapWindow(session) === null)}
+        >
+          <Workflow size={18} aria-hidden="true" />
+          <span>{t.presenterView.flowMap}</span>
+        </button>
         <button type="button" className={`${styles.ctl} ${styles.danger}`} disabled={finished} data-testid="view-exit" onClick={() => send({ action: 'exit' })}>
           <Square size={16} aria-hidden="true" />
           <span>{t.presenterView.endShow}</span>

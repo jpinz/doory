@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type DocObject, type DocPage, type DoryDocument, MAX_DIMENSION_PX } from '@/types/document'
 import { getPageSize } from '../engine/pageSizes'
+import { objectCenter } from '../engine/magicResize'
+import { readSections } from '../engine/sections'
+import { framePositions } from '../flow/layout'
 import { useLatest } from '../hooks/useLatest'
 import { canvasToBlob } from '../engine/render'
 import { type ChannelLike, canLink, type InteractivePreview, MAX_PAGE_INTERACTIVES, openLink, type PagePreview, type PresenterLink, type PreviewBox, type ViewCommand } from './channel'
@@ -8,6 +11,7 @@ import type { FrameCache } from './frames'
 import { objectBoxes } from './objectBoxes'
 import type { SlideshowAction, SlideshowState } from './machine'
 import { pageNotes } from './pageProps'
+import { resolveNextIndices } from './navigation'
 import { NOTES_MAX_LENGTH } from './timing'
 import { t } from '../strings'
 import { dieDocuments } from '../dynamic/interactive/dice/model'
@@ -63,9 +67,27 @@ const previewOf = (objects: DocObject[], label: string, boxes: (ids: Set<string>
 }
 
 export function previewsOf(doc: DoryDocument, durations: readonly (number | null)[]): PagePreview[] {
+  const nextIndices = resolveNextIndices(doc.pages)
+  const flow = framePositions(doc)
+  const sections = new Map(readSections(doc).map((section) => [section.id, section]))
   return doc.pages.map((page: DocPage, index) => {
     const size = getPageSize(doc, page.id)
     const boxes = (ids: Set<string>) => objectBoxes(page.objects, ids, size.width, size.height)
+    const actions = new Map<string, string>()
+    const links: { pageId: string; x: number; y: number }[] = []
+    for (const object of page.objects) {
+      if (object.visible === false) continue
+      const pageId = object.presentationLink?.pageId
+      const targetIndex = doc.pages.findIndex((candidate) => candidate.id === pageId)
+      if (!pageId || targetIndex < 0 || targetIndex === index) continue
+      const center = objectCenter(object)
+      if (links.length < 200) links.push({ pageId, x: Math.min(1, Math.max(0, center.x / size.width)), y: Math.min(1, Math.max(0, center.y / size.height)) })
+      if (actions.has(pageId)) continue
+      const target = doc.pages[targetIndex]
+      const objectName = typeof object.name === 'string' ? object.name.trim() : ''
+      const targetName = typeof target.name === 'string' ? target.name.trim() : ''
+      actions.set(pageId, (objectName || targetName || t.workspace.page(targetIndex + 1)).slice(0, 200))
+    }
     return {
       id: page.id,
       // The channel refuses oversized values, so what a hand-made document holds is cut to what it can carry.
@@ -76,6 +98,11 @@ export function previewsOf(doc: DoryDocument, durations: readonly (number | null
       height: Math.min(MAX_DIMENSION_PX, size.height),
       wheels: previewOf(wheelDocuments(page.objects), t.wheel.name, boxes),
       dice: previewOf(dieDocuments(page.objects), t.dice.name, boxes),
+      ...(page.presentationNext !== undefined ? { nextPageId: nextIndices[index] === null ? null : doc.pages[nextIndices[index]!].id } : {}),
+      actions: [...actions].map(([pageId, label]) => ({ pageId, label })),
+      flow: flow[index],
+      ...(page.sectionId && sections.has(page.sectionId) ? { section: { id: page.sectionId.slice(0, 64), name: sections.get(page.sectionId)!.name.slice(0, 200) } } : {}),
+      links,
     }
   })
 }
@@ -96,6 +123,8 @@ function actionOf(command: Exclude<ViewCommand, { action: 'spin-wheel' | 'roll-d
       return { type: 'toggleBlackout' }
     case 'goto':
       return { type: 'goto', index: command.index }
+    case 'follow':
+      return { type: 'follow', index: command.index }
     case 'exit':
       return 'exit'
   }
@@ -123,10 +152,13 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
     const opened = openLink(session, 'show', createChannel)
     linkRef.current = opened
     if (!opened) return
+    // The presenter view and its flow map each say hello; a window without an id stands for all of them.
+    const views = new Set<string>()
     const off = opened.subscribe((message) => {
       const o = latest.current
       switch (message.kind) {
         case 'hello':
+          views.add(message.viewId ?? '')
           setConnected(true)
           opened.send({ kind: 'init', title: o.title.slice(0, 300) || t.untitled, theme: currentTheme(), pages: previewsRef.current, state: o.state })
           break
@@ -148,7 +180,9 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
           void sendFrame(opened, o.previews, o.doc.pages.find((p) => p.id === message.pageId), message.width)
           break
         case 'bye':
-          setConnected(false)
+          if (message.viewId === undefined) views.clear()
+          else views.delete(message.viewId)
+          setConnected(views.size > 0)
           break
         default:
           break

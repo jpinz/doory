@@ -264,6 +264,15 @@
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease-out);
 }
+.action {
+  max-width: 180px;
+  overflow: hidden;
+}
+.action span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .ctl:hover:not(:disabled) {
   background: var(--color-bg-muted);
 }
@@ -356,6 +365,9 @@
   }
   .ctl span {
     display: none;
+  }
+  .action span {
+    display: block;
   }
   .ctl {
     padding: 0 var(--space-3);

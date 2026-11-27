@@ -62,8 +62,8 @@ export function createPublicServices(): PublicServices {
     fonts: { list: (query) => fontsApi.list(query) },
     elements: { packs: () => elementsApi.packs(), list: (query) => elementsApi.list(query) },
     templates: {
-      categories: () => templatesApi.categories(),
-      list: (query) => templatesApi.list(query),
+      categories: () => templatesApi.categories(undefined, true),
+      list: (query) => templatesApi.list({ ...query, presentation_only: true }),
       get: (slug) => templatesApi.get(slug),
     },
   }

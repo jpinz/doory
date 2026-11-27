@@ -9,7 +9,7 @@ import { PresenterView } from './PresenterView'
 
 const SESSION = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
 const pages: PagePreview[] = [
-  { id: 'a', name: 'Intro', notes: 'Welcome everyone.\nSay hello.', durationSec: 10, width: 1920, height: 1080 },
+  { id: 'a', name: 'Intro', notes: 'Welcome everyone.\nSay hello.', durationSec: 10, width: 1920, height: 1080, actions: [{ pageId: 'c', label: 'Open answer' }] },
   { id: 'b', name: 'Square', notes: '', durationSec: 10, width: 1080, height: 1080 },
   { id: 'c', name: '', notes: '<b>not bold</b>', durationSec: null, width: 1080, height: 1920 },
 ]
@@ -92,6 +92,28 @@ describe('PresenterView', () => {
     expect(img).toHaveAttribute('src', 'blob:preview')
   })
 
+  it('sends linked slide actions from the presenter view', async () => {
+    const a = audience()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    await waitFor(() => expect(a.received.some((m) => m.kind === 'hello')).toBe(true))
+    act(() => a.init())
+    await screen.findByTestId('view-root')
+    fireEvent.click(screen.getByTestId('view-action-0'))
+    expect(a.commands()).toContainEqual({ action: 'follow', index: 2 })
+  })
+
+  it('previews the flow destination instead of the next slide in deck order', async () => {
+    const a = audience()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    await waitFor(() => expect(a.received.some((m) => m.kind === 'hello')).toBe(true))
+    act(() => a.show.send({
+      kind: 'init', title: 'Flow', theme: null, state: stateAt(),
+      pages: pages.map((page, index) => index === 0 ? { ...page, nextPageId: 'c' } : page),
+    }))
+    await screen.findByTestId('view-root')
+    await waitFor(() => expect(a.received.some((message) => message.kind === 'need-frame' && message.pageId === 'c')).toBe(true))
+  })
+
   it('follows the state it is sent: page, notes, "last page"', async () => {
     const a = audience()
     render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
@@ -164,7 +186,7 @@ describe('PresenterView', () => {
     render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
     act(() => a.show.send({
       kind: 'init', title: 'Deck', theme: null,
-      pages: [{ ...pages[0], wheels: [{ id: 'w1', label: 'Prize' }, { id: 'w2', label: 'Bonus' }] }, pages[1]],
+      pages: [{ ...pages[0], actions: [], wheels: [{ id: 'w1', label: 'Prize' }, { id: 'w2', label: 'Bonus' }] }, pages[1]],
       state: stateAt(),
     }))
     await user.click(await screen.findByRole('button', { name: `${t.wheel.spin}: Bonus` }))
@@ -184,7 +206,7 @@ describe('PresenterView', () => {
     render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
     act(() => a.show.send({
       kind: 'init', title: 'Deck', theme: null,
-      pages: [{ ...pages[0], dice: [{ id: 'd1', label: 'Red' }, { id: 'd2', label: 'Blue' }] }, { ...pages[1], dice: [{ id: 'd3', label: 'Solo' }] }],
+      pages: [{ ...pages[0], actions: [], dice: [{ id: 'd1', label: 'Red' }, { id: 'd2', label: 'Blue' }] }, { ...pages[1], dice: [{ id: 'd3', label: 'Solo' }] }],
       state: stateAt(),
     }))
     await user.click(await screen.findByRole('button', { name: `${t.dice.roll}: Blue` }))
@@ -205,7 +227,7 @@ describe('PresenterView', () => {
     const user = userEvent.setup()
     render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
     const dice = [{ id: 'd1', label: 'Red', box: { x: 0.1, y: 0.2, w: 0.25, h: 0.5 } }, { id: 'd2', label: 'Blue', box: { x: 0.6, y: 0.2, w: 0.25, h: 0.5 } }]
-    act(() => a.show.send({ kind: 'init', title: 'Deck', theme: null, pages: [{ ...pages[0], dice }, pages[1]], state: stateAt() }))
+    act(() => a.show.send({ kind: 'init', title: 'Deck', theme: null, pages: [{ ...pages[0], actions: [], dice }, pages[1]], state: stateAt() }))
     const marks = () => screen.queryAllByTestId('view-current-mark')
     await screen.findByTestId('view-root')
     expect(marks()).toHaveLength(0)
@@ -268,5 +290,20 @@ describe('PresenterView', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('opens the flow map in its own window, and says so when the browser blocks it', async () => {
+    const a = audience()
+    const open = vi.spyOn(window, 'open').mockReturnValueOnce({ focus: vi.fn() } as unknown as Window).mockReturnValueOnce(null)
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    await waitFor(() => expect(a.received.some((m) => m.kind === 'hello')).toBe(true))
+    act(() => a.init())
+    await userEvent.click(await screen.findByTestId('view-flow-map'))
+    expect(String(open.mock.calls[0][0])).toContain(`session=${SESSION}`)
+    expect(String(open.mock.calls[0][0])).toContain('panel=flow')
+    expect(screen.queryByTestId('view-map-blocked')).toBeNull()
+    await userEvent.click(screen.getByTestId('view-flow-map'))
+    expect(screen.getByTestId('view-map-blocked')).toHaveTextContent(t.presenterView.flowMapBlocked)
+    open.mockRestore()
   })
 })

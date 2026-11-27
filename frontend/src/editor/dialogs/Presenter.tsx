@@ -16,6 +16,7 @@ import { canLink, isSessionId, newSessionId } from '../presenter/channel'
 import { createFrameCache } from '../presenter/frames'
 import { actionForKey, isActivationKey, type PresenterKey } from '../presenter/keymap'
 import { remainingMs } from '../presenter/machine'
+import { resolveNextIndices } from '../presenter/navigation'
 import { createMotionCache, motionDurations, planMotion } from '../presenter/motion'
 import { pageNotes } from '../presenter/pageProps'
 import { formatClock, hasTimings, resolveDurations } from '../presenter/timing'
@@ -77,7 +78,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   const reduced = useReducedMotion()
   const plan = useMemo(() => planMotion(doc, reduced), [doc, reduced])
   const durations = useMemo(() => motionDurations(resolveDurations(doc.pages), plan), [doc, plan])
-  const config = useMemo(() => ({ count: doc.pages.length, durations }), [doc, durations])
+  const config = useMemo(() => ({ count: doc.pages.length, durations, nextIndices: resolveNextIndices(doc.pages) }), [doc, durations])
   const [state, dispatch] = useSlideshow(config, { index: start, autoAdvance: hasTimings(doc.pages) })
   const frames = useMemo(() => createFrameCache(editor, doc), [editor, doc])
   const previews = useMemo(() => createFrameCache(editor, doc), [editor, doc])
@@ -276,6 +277,10 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
     if (e.button !== 0) return
     press.current = { x: e.clientX, y: e.clientY, at: e.timeStamp }
   }
+  const followLink = useCallback((pageId: string): void => {
+    const index = doc.pages.findIndex((candidate) => candidate.id === pageId)
+    if (index >= 0) dispatch({ type: 'follow', index })
+  }, [dispatch, doc])
   const onStageUp = (e: React.PointerEvent): void => {
     const from = press.current
     press.current = null
@@ -351,7 +356,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
     >
       <div className={styles.main}>
         {motionFrames ? (
-          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} interactiveRef={motionStage} onInteractiveStatus={host.interactiveStatus} onPointerDown={onStageDown} onPointerUp={onStageUp}>
+          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} interactiveRef={motionStage} onInteractiveStatus={host.interactiveStatus} onPointerDown={onStageDown} onPointerUp={onStageUp} onNavigate={followLink}>
             {stageOverlays}
           </PresenterMotionStage>
         ) : (

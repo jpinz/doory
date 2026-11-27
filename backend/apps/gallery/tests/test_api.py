@@ -105,6 +105,23 @@ def test_filter_by_category_slug(client):
     assert slugs(client.get(LIST, {"category": "does-not-exist"})) == []
 
 
+def test_presentation_filter_keeps_slide_formats_and_scopes_category_counts(client):
+    slides = make_category("Slides")
+    posters = make_category("Posters")
+    make_template("Wide deck", category=slides, preset="presentation")
+    make_template("Classic deck", category=slides, preset="presentation-4-3")
+    make_template("Poster", category=posters, preset="poster")
+    response = client.get(LIST, {"presentation_only": "true"})
+    assert response.status_code == 200
+    assert set(slugs(response)) == {"wide-deck", "classic-deck"}
+    counts = {
+        item["slug"]: item["template_count"]
+        for item in client.get(CATEGORIES, {"presentation_only": "true"}).data
+    }
+    assert counts == {"slides": 2, "posters": 0}
+    assert "poster" in slugs(client.get(LIST))
+
+
 @pytest.mark.parametrize(
     ("orientation", "expected"),
     [("landscape", ["wide"]), ("portrait", ["tall"]), ("square", ["even"])],

@@ -19,8 +19,9 @@ function isEditableTarget(el: EventTarget | null): boolean {
  * Global editor shortcuts, driven entirely by the command registry. Native text fields keep their own
  * shortcuts; Fabric's hidden text-editing textarea only receives commands flagged `whileEditing`.
  */
-export function useKeyboardShortcuts(engine: EditorEngine, rootRef: RefObject<HTMLElement | null>): void {
+export function useKeyboardShortcuts(engine: EditorEngine, rootRef: RefObject<HTMLElement | null>, enabled = true): void {
   useEffect(() => {
+    if (!enabled) return
     const onKeyDown = (e: KeyboardEvent): void => {
       const root = rootRef.current
       const target = e.target as HTMLElement | null
@@ -67,12 +68,13 @@ export function useKeyboardShortcuts(engine: EditorEngine, rootRef: RefObject<HT
       document.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
     }
-  }, [engine, rootRef])
+  }, [engine, rootRef, enabled])
 }
 
 /** Copy / cut / paste via the DOM clipboard events (works across tabs and with the system clipboard). */
-export function useClipboardEvents(engine: EditorEngine, rootRef: RefObject<HTMLElement | null>): void {
+export function useClipboardEvents(engine: EditorEngine, rootRef: RefObject<HTMLElement | null>, enabled = true): void {
   useEffect(() => {
+    if (!enabled) return
     const applicable = (e: Event): boolean => {
       const root = rootRef.current
       const target = e.target as HTMLElement | null
@@ -104,5 +106,5 @@ export function useClipboardEvents(engine: EditorEngine, rootRef: RefObject<HTML
       document.removeEventListener('cut', onCut)
       document.removeEventListener('paste', onPaste)
     }
-  }, [engine, rootRef])
+  }, [engine, rootRef, enabled])
 }

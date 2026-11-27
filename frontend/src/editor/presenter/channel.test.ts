@@ -49,6 +49,7 @@ describe('parseMessage', () => {
     expect(parseMessage(wrap(init), 'view')).toMatchObject({ kind: 'init', title: 'Deck' })
     expect(parseMessage(wrap({ kind: 'state', state }), 'view')).toMatchObject({ kind: 'state' })
     expect(parseMessage(wrap({ kind: 'command', command: { action: 'goto', index: 2 } }, 'view'), 'show')).toMatchObject({ command: { action: 'goto', index: 2 } })
+    expect(parseMessage(wrap({ kind: 'command', command: { action: 'follow', index: 2 } }, 'view'), 'show')).toMatchObject({ command: { action: 'follow', index: 2 } })
     expect(parseMessage(wrap({ kind: 'command', command: { action: 'toggle-pause' } }, 'view'), 'show')).toMatchObject({ command: { action: 'toggle-pause' } })
     expect(parseMessage(wrap({ kind: 'command', command: { action: 'spin-wheel', pageId: 'a', wheelId: 'w' } }, 'view'), 'show')).toMatchObject({ command: { action: 'spin-wheel', pageId: 'a', wheelId: 'w' } })
     expect(parseMessage(wrap({ kind: 'command', command: { action: 'roll-dice', pageId: 'a', dieIds: ['d1', 'd2'] } }, 'view'), 'show')).toMatchObject({ command: { action: 'roll-dice', dieIds: ['d1', 'd2'] } })
@@ -71,6 +72,17 @@ describe('parseMessage', () => {
     expect(parseMessage(wrap(init, 'view'), 'show')).toBeNull()
   })
 
+  it('carries a view id and the flow map layout, and checks them', () => {
+    expect(parseMessage(wrap({ kind: 'bye', viewId: SESSION }, 'view'), 'show')).toMatchObject({ kind: 'bye', viewId: SESSION })
+    expect(parseMessage(wrap({ kind: 'hello', viewId: 'x' }, 'view'), 'show')).toBeNull()
+    const mapped = { ...init, pages: [page('a', { flow: { x: 60, y: 80 }, section: { id: 's1', name: 'Round 1' }, links: [{ pageId: 'c', x: 0.5, y: 0.25 }] }), page('b'), page('c')] }
+    const parsed = parseMessage(wrap(mapped), 'view') as Extract<Envelope, { kind: 'init' }>
+    expect(parsed.pages[0]).toMatchObject({ flow: { x: 60, y: 80 }, section: { name: 'Round 1' }, links: [{ pageId: 'c' }] })
+    for (const bad of [{ flow: { x: -1, y: 0 } }, { links: [{ pageId: 'gone', x: 0, y: 0 }] }, { links: [{ pageId: 'c', x: 2, y: 0 }] }, { section: { id: '', name: 'R' } }]) {
+      expect(parseMessage(wrap({ ...init, pages: [page('a', bad), page('b'), page('c')] }), 'view')).toBeNull()
+    }
+  })
+
   it('validates commands', () => {
     for (const command of [{ action: 'format-disk' }, { action: 'goto' }, { action: 'goto', index: -1 }, { action: 'goto', index: 1.5 }, { action: 'goto', index: 100 }, { action: 'goto', index: '1' }, { action: 'spin-wheel', pageId: 'a', wheelId: '' }, { action: 'spin-wheel', pageId: 'a'.repeat(65), wheelId: 'w' }, { action: 'roll-dice', pageId: 'a', dieIds: [] }, { action: 'roll-dice', pageId: 'a', dieIds: ['d', 'd'] }, { action: 'roll-dice', pageId: 'a', dieIds: 'd' }, 'next', null, {}]) {
       expect(parseMessage(wrap({ kind: 'command', command }, 'view'), 'show')).toBeNull()
@@ -91,6 +103,9 @@ describe('parseMessage', () => {
     expect(parseMessage(bad({ pages: [page('a', { dice: [{ id: '', label: 'Die' }] })] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: [page('a', { dice: [{ id: 'd', label: 'Die', box: { x: 0, y: 0, w: -1, h: 1 } }] })] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: [page('a', { dice: [{ id: 'd', label: 'Die', box: { x: Number.NaN, y: 0, w: 1, h: 1 } }] })] }), 'view')).toBeNull()
+    expect(parseMessage(bad({ pages: [page('a', { actions: [{ pageId: 'missing', label: 'Answer' }] })] }), 'view')).toBeNull()
+    expect(parseMessage(bad({ pages: [page('a', { nextPageId: 'missing' })] }), 'view')).toBeNull()
+    expect(parseMessage(bad({ pages: [page('a', { nextPageId: 2 as unknown as string })] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: [page('')] }), 'view')).toBeNull()
     expect(parseMessage(bad({ pages: ['page'] }), 'view')).toBeNull()
     expect(parseMessage(bad({ title: 'x'.repeat(301) }), 'view')).toBeNull()

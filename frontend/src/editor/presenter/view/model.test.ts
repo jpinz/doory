@@ -8,7 +8,15 @@ const config: SlideshowConfig = configOf([page('a', 10), page('b', null), page('
 
 describe('configOf', () => {
   it('takes the count and the times from the pages', () => {
-    expect(config).toEqual({ count: 3, durations: [10, null, 4] })
+    expect(config).toEqual({ count: 3, durations: [10, null, 4], nextIndices: [1, 2, null] })
+  })
+
+  it('uses the audience window flow for the next preview', () => {
+    expect(configOf([
+      { ...page('a', 10), nextPageId: 'c' },
+      page('b', null),
+      { ...page('c', 4), nextPageId: null },
+    ]).nextIndices).toEqual([2, 2, null])
   })
 })
 

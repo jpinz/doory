@@ -45,9 +45,9 @@ export function TemplatesBrowser() {
     )
   }, [debounced, urlQuery, setParams])
 
-  const categories = useTemplateCategories()
+  const categories = useTemplateCategories(true)
   const query: TemplateQuery = useMemo(
-    () => ({ category: category || undefined, q: urlQuery || undefined, orientation: orientation === 'all' ? undefined : orientation }),
+    () => ({ presentation_only: true, category: category || undefined, q: urlQuery || undefined, orientation: orientation === 'all' ? undefined : orientation }),
     [category, urlQuery, orientation],
   )
   const list = useTemplatesList(query)
