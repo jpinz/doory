@@ -62,7 +62,7 @@ add a row to the matching section (see [CONTRIBUTING.md](../../CONTRIBUTING.md#d
 | `LOG_LEVEL` | `INFO` | Log level of every service |
 | `DJANGO_SETTINGS_MODULE` | `doory.settings.dev` | `doory.settings.prod` in production. Docker and the systemd units set it for you |
 | `DJANGO_DEBUG` | `false` | Development only: show Django's debug pages |
-| `DEV_AUTO_LOGIN` | `false` | Local development only: automatically create or reuse the shared Admin account and sign every visitor into it. Production and test settings ignore this flag. See [shared local account](../development/README.md#shared-local-account) |
+| `DEV_AUTO_LOGIN` | `false` (`true` by default for new worktrees) | Local development only: automatically create or reuse the shared Admin account and sign every visitor into it. Production and test settings ignore this flag. See [shared local account](../development/README.md#shared-local-account) |
 
 ## Media storage and per-user limits
 

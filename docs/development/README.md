@@ -26,10 +26,10 @@ Every setting is described in [configuration.md](../self-hosting/configuration.m
 
 ### Shared local account
 
-Set `DEV_AUTO_LOGIN=true` in `backend/.env` to use one shared account without signing in. Local requests
-create or reuse `admin@doory.local`, named **Admin**, and sign every visitor into it. New accounts have no
-password; an existing account's password and data are kept. Sign-out, account-security settings and account
-deletion are unavailable in this mode.
+New worktrees enable `DEV_AUTO_LOGIN` by default; other local setups can set `DEV_AUTO_LOGIN=true` in
+`backend/.env` to use one shared account without signing in. Local requests create or reuse `admin@doory.local`,
+named **Admin**, and sign every visitor into it. New accounts have no password; an existing account's password
+and data are kept. Sign-out, account-security settings and account deletion are unavailable in this mode.
 
 Set it back to `false` to test normal authentication. The account and its data are kept. Production and
 test settings ignore this flag, even when it is enabled in `backend/.env`.
@@ -38,7 +38,9 @@ test settings ignore this flag, even when it is enabled in `backend/.env`.
 
 `scripts/worktree-setup.sh` prepares a git worktree in one step: `make setup`, then a database with the first-run
 content (templates, fonts, elements, model, audio). Orca runs it in every new worktree (`orca.yaml`) and the
-script copies `backend/.env` from the main checkout. With other tools, run it by hand in the new worktree.
+script copies `backend/.env` from the main checkout when available. It keeps an explicitly set `DEV_AUTO_LOGIN`
+value from that file and never changes an existing worktree's `backend/.env`. With other tools, run it by hand
+in the new worktree.
 
 The first run builds the content with `make seed` (downloads, takes minutes) and keeps the database and
 `backend/media/` in `~/.cache/doory/dev-content` (`DOORY_DEV_CONTENT` to change it). Later worktrees copy that

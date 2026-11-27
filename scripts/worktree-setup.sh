@@ -26,9 +26,16 @@ node_version=$(node --version 2>/dev/null || echo none)
 case "$node_version" in v22.*) ;; *) echo "Warning: Node.js $node_version found, Doory expects Node.js 22." >&2 ;; esac
 
 # Reuse the main checkout's settings (API keys and so on) when it has them.
-if [ ! -f backend/.env ] && [ -n "$main" ] && [ "$main" != "$root" ] && [ -f "$main/backend/.env" ]; then
-  log "Copying backend/.env from $main"
-  cp "$main/backend/.env" backend/.env
+if [ ! -f backend/.env ]; then
+  if [ -n "$main" ] && [ "$main" != "$root" ] && [ -f "$main/backend/.env" ]; then
+    log "Copying backend/.env from $main"
+    cp "$main/backend/.env" backend/.env
+  else
+    sed 's/^DEV_AUTO_LOGIN=.*/DEV_AUTO_LOGIN=true/' backend/.env.example > backend/.env
+  fi
+  if ! grep -Eq '^(export )?DEV_AUTO_LOGIN=' backend/.env; then
+    printf '\nDEV_AUTO_LOGIN=true\n' >> backend/.env
+  fi
 fi
 
 log "make setup"
