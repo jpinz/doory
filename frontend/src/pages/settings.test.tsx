@@ -7,6 +7,20 @@ import { makeConfig, makeDesign, makeUser, page } from '@/test/factories'
 
 const err = (code: string, message: string, status: number, extra: Record<string, unknown> = {}) => HttpResponse.json({ error: { code, message, ...extra } }, { status })
 
+it('hides account security and deletion for the shared development account', async () => {
+  const config = makeConfig()
+  renderApp('/settings', {
+    user: makeUser(),
+    config: { ...config, features: { ...config.features, dev_auto_login: true } },
+  })
+  await screen.findByLabelText('Display name')
+  expect(screen.getByRole('heading', { name: 'Accessibility' })).toBeInTheDocument()
+  expect(screen.queryByLabelText('Email address')).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Password' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Session' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Delete my account…' })).not.toBeInTheDocument()
+})
+
 describe('settings: profile', () => {
   it('updates the display name', async () => {
     const bodies: unknown[] = []

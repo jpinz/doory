@@ -4,14 +4,16 @@ import os
 from io import BytesIO
 
 import pytest
+from django.contrib.auth import SESSION_KEY
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
+from rest_framework.test import APIClient
 
 from apps.accounts.models import User
 
-from .conftest import ME, PASSWORD, login_as, png_upload
+from .conftest import LOGOUT, ME, PASSWORD, login_as, png_upload
 
 pytestmark = pytest.mark.django_db
 
@@ -46,6 +48,85 @@ def test_me_for_google_only_account(client, make_user):
     client.force_login(google_user)
     body = client.get(ME).json()["user"]
     assert (body["has_password"], body["google_linked"], body["is_email_verified"]) == (False, True, True)
+
+
+@pytest.fixture
+def development_login(settings):
+    settings.DEV_AUTO_LOGIN = True
+    index = settings.MIDDLEWARE.index("django.contrib.auth.middleware.AuthenticationMiddleware") + 1
+    settings.MIDDLEWARE = [
+        *settings.MIDDLEWARE[:index],
+        "apps.accounts.middleware.DevelopmentAutoLoginMiddleware",
+        *settings.MIDDLEWARE[index:],
+    ]
+
+
+def test_development_visitors_share_one_admin_account(client, development_login):
+    assert client.get("/api/v1/designs/").status_code == 200
+    first = client.get(ME).json()["user"]
+    second = APIClient().get(ME).json()["user"]
+    assert first["id"] == second["id"]
+    assert (first["email"], first["display_name"], first["has_password"]) == (
+        "admin@doory.local",
+        "Admin",
+        False,
+    )
+    assert client.session[SESSION_KEY] == first["id"]
+    assert User.objects.count() == 1
+    assert client.get("/api/v1/config/").json()["features"]["dev_auto_login"] is True
+
+
+def test_development_login_reuses_existing_admin_and_replaces_other_sessions(
+    client, make_user, user, development_login
+):
+    admin = make_user("admin@doory.local", display_name="Shared studio", is_active=False)
+    password = admin.password
+    client.force_login(user)
+    assert client.get(ME).json()["user"]["id"] == str(admin.pk)
+    admin.refresh_from_db()
+    assert admin.password == password
+    assert admin.display_name == "Shared studio"
+    assert admin.is_active and admin.is_staff and admin.is_superuser and admin.is_email_verified
+    assert client.session[SESSION_KEY] == str(admin.pk)
+
+
+def test_development_login_keeps_existing_session_and_cannot_sign_out(client, development_login):
+    first = client.get(ME).json()["user"]
+    session_key = client.session.session_key
+    csrf_token = client.cookies["csrftoken"].value
+    assert client.get(ME).json()["user"]["id"] == first["id"]
+    assert client.session.session_key == session_key
+    assert client.cookies["csrftoken"].value == csrf_token
+    assert client.post(LOGOUT).status_code == 204
+    assert client.get(ME).json()["user"]["id"] == first["id"]
+
+
+def test_development_account_cannot_be_deleted(client, make_user, development_login):
+    make_user("other-admin@example.com", is_superuser=True)
+    admin = client.get(ME).json()["user"]
+    response = client.delete(ME, {"confirm_email": admin["email"]}, format="json")
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "shared_account"
+    assert User.objects.filter(pk=admin["id"]).exists()
+
+
+def test_development_login_still_requires_csrf(csrf_client, development_login):
+    csrf_client.get(ME)
+    assert csrf_client.patch(ME, {"display_name": "Shared studio"}, format="json").status_code == 403
+    response = csrf_client.patch(
+        ME,
+        {"display_name": "Shared studio"},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_client.cookies["csrftoken"].value,
+    )
+    assert response.status_code == 200
+    assert csrf_client.get(ME).json()["user"]["display_name"] == "Shared studio"
+
+
+def test_development_middleware_is_inert_when_disabled(client, settings, development_login):
+    settings.DEV_AUTO_LOGIN = False
+    assert client.get(ME).json() == {"user": None}
+    assert not User.objects.exists()
 
 
 # --- PATCH display_name ---------------------------------------------------------------------------

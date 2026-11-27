@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 from django.conf import settings
+from django.contrib.auth.hashers import make_password
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
 
@@ -20,6 +21,32 @@ from .serializers import clean_display_name
 
 AVATAR_SIZE = 512
 AVATAR_MAX_PIXELS = 16_000_000  # a 5 MB PNG can hold far more pixels than we want to decode
+
+
+def get_development_admin() -> User:
+    user, _ = User.objects.get_or_create(
+        email__iexact="admin@doory.local",
+        defaults={
+            "email": "admin@doory.local",
+            "display_name": "Admin",
+            "password": make_password(None),
+            "is_active": True,
+            "is_staff": True,
+            "is_superuser": True,
+            "is_email_verified": True,
+        },
+    )
+    fields = []
+    for field in ("is_active", "is_staff", "is_superuser", "is_email_verified"):
+        if not getattr(user, field):
+            setattr(user, field, True)
+            fields.append(field)
+    if not user.display_name:
+        user.display_name = "Admin"
+        fields.append("display_name")
+    if fields:
+        user.save(update_fields=[*fields, "updated_at"])
+    return user
 
 
 def build_avatar(upload, *, max_bytes: int) -> bytes:

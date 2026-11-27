@@ -15,16 +15,32 @@ make dev-api   # API on http://localhost:8000 (also serves WebSockets)
 make dev-web   # app on http://localhost:5173, in a second terminal; proxies /api and /ws to the API
 ```
 
+In Copilot CLI, `/run` starts both servers, while `/run-api` and `/run-web` start just one. They use
+service-specific settings from `dev-local.sh` when available, otherwise the Make targets above.
+Use `/skills reload` to discover new skills in an existing session.
+
 To reuse an existing virtualenv: `make <target> PY=/path/to/venv/bin/python`.
 
 The local settings are in `backend/.env`, created from [`backend/.env.example`](../../backend/.env.example).
 Every setting is described in [configuration.md](../self-hosting/configuration.md).
 
+### Shared local account
+
+New worktrees enable `DEV_AUTO_LOGIN` by default; other local setups can set `DEV_AUTO_LOGIN=true` in
+`backend/.env` to use one shared account without signing in. Local requests create or reuse `admin@doory.local`,
+named **Admin**, and sign every visitor into it. New accounts have no password; an existing account's password
+and data are kept. Sign-out, account-security settings and account deletion are unavailable in this mode.
+
+Set it back to `false` to test normal authentication. The account and its data are kept. Production and
+test settings ignore this flag, even when it is enabled in `backend/.env`.
+
 ## Worktrees
 
 `scripts/worktree-setup.sh` prepares a git worktree in one step: `make setup`, then a database with the first-run
 content (templates, fonts, elements, model, audio). Orca runs it in every new worktree (`orca.yaml`) and the
-script copies `backend/.env` from the main checkout. With other tools, run it by hand in the new worktree.
+script copies `backend/.env` from the main checkout when available. It keeps an explicitly set `DEV_AUTO_LOGIN`
+value from that file and never changes an existing worktree's `backend/.env`. With other tools, run it by hand
+in the new worktree.
 
 The first run builds the content with `make seed` (downloads, takes minutes) and keeps the database and
 `backend/media/` in `~/.cache/doory/dev-content` (`DOORY_DEV_CONTENT` to change it). Later worktrees copy that

@@ -45,6 +45,7 @@ export interface AppConfig {
     google_login: boolean
     oidc_login?: boolean
     email_verification: boolean
+    dev_auto_login?: boolean
     background_removal?: boolean
     realtime?: boolean
     mcp?: boolean

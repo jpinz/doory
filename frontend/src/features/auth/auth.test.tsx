@@ -217,6 +217,37 @@ describe('password reset and email verification', () => {
 })
 
 describe('logout', () => {
+  it('hides sign-out in the shared development account menu', async () => {
+    const config = makeConfig()
+    renderApp('/dashboard', {
+      user: makeUser({ display_name: 'Admin', name: 'Admin', email: 'admin@doory.local' }),
+      config: { ...config, features: { ...config.features, dev_auto_login: true } },
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Account menu for Admin' }))
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).queryByRole('menuitem', { name: 'Sign out' })).not.toBeInTheDocument()
+    expect(within(menu).queryByText('admin@doory.local')).not.toBeInTheDocument()
+  })
+
+  it('keeps the shared development session when logout is requested', async () => {
+    const config = makeConfig()
+    const signOut = vi.fn(() => new HttpResponse(null, { status: 204 }))
+    server.use(
+      http.get('*/api/v1/auth/me/', () => HttpResponse.json({ user: makeUser() })),
+      http.get('*/api/v1/config/', () => HttpResponse.json({ ...config, features: { ...config.features, dev_auto_login: true } })),
+      http.post('*/api/v1/auth/logout/', signOut),
+    )
+    function Probe() {
+      const { status, logout } = useAuth()
+      return <><p>{status}</p><button onClick={() => void logout()}>Sign out probe</button></>
+    }
+    render(<AppProviders client={createTestQueryClient()}><Probe /></AppProviders>)
+    await screen.findByText('authenticated')
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out probe' }))
+    expect(screen.getByText('authenticated')).toBeInTheDocument()
+    expect(signOut).not.toHaveBeenCalled()
+  })
+
   it('signs out from the account menu and goes home', async () => {
     let loggedOut = false
     const { router, setUser } = renderApp('/dashboard', {

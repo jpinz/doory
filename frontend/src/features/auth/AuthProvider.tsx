@@ -171,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(async () => {
+    if (config.features.dev_auto_login) return
     try {
       await authApi.logout()
     } finally {
@@ -179,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       applyUser(null)
       queryClient.clear()
     }
-  }, [applyUser, queryClient])
+  }, [applyUser, queryClient, config.features.dev_auto_login])
 
   const refresh = useCallback(async () => {
     const { user: next } = await authApi.me()

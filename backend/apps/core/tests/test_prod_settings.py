@@ -18,7 +18,7 @@ names = [
     "DEBUG", "SECURE_SSL_REDIRECT", "SESSION_COOKIE_SECURE", "CSRF_COOKIE_SECURE", "SECURE_HSTS_SECONDS",
     "CSRF_TRUSTED_ORIGINS", "CORS_ALLOWED_ORIGINS", "X_FRAME_OPTIONS", "SECURE_REFERRER_POLICY",
     "SECURE_CONTENT_TYPE_NOSNIFF", "SECRET_KEY_FALLBACKS", "SECURE_REDIRECT_EXEMPT", "AUTHENTICATION_BACKENDS",
-    "PASSWORD_RESET_TIMEOUT",
+    "PASSWORD_RESET_TIMEOUT", "DEV_AUTO_LOGIN", "MIDDLEWARE",
 ]
 data = {name: getattr(settings, name) for name in names}
 data["NUM_PROXIES"] = settings.REST_FRAMEWORK["NUM_PROXIES"]
@@ -87,6 +87,12 @@ def test_account_security_defaults(prod):
     assert prod["AUTHENTICATION_BACKENDS"] == ["apps.accounts.backends.GuardedModelBackend"]
     assert prod["PASSWORD_RESET_TIMEOUT"] == 24 * 60 * 60
     assert prod["SECRET_KEY_FALLBACKS"] == []
+
+
+def test_production_ignores_development_auto_login():
+    settings = load_settings(DEV_AUTO_LOGIN="true")
+    assert settings["DEV_AUTO_LOGIN"] is False
+    assert "apps.accounts.middleware.DevelopmentAutoLoginMiddleware" not in settings["MIDDLEWARE"]
 
 
 def test_health_checks_are_exempt_from_the_https_redirect(prod):

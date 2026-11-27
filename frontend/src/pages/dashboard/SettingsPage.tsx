@@ -15,6 +15,7 @@ import settingsStyles from './SettingsPage.module.css'
 export default function SettingsPage() {
   usePageTitle(msg("Settings"))
   const { config } = useAuth()
+  const sharedAccount = config.features.dev_auto_login === true
   const mcp = config.features.mcp === true // the MCP server is opt-in on the server
   // Users' own AI servers are opt-in too; with `staff` the section hides itself for everyone else.
   const aiProviders = config.features.ai_providers === true && (config.ai?.user_providers ?? 'off') !== 'off'
@@ -22,17 +23,23 @@ export default function SettingsPage() {
     <div className={styles.page}>
       <header className={styles.heading}>
         <h1 className={styles.title}>{msg("Settings")}</h1>
-        <p className={styles.lead}>{mcp ? 'Manage your profile, email, security and AI assistant access.' : 'Manage your profile, email and security.'}</p>
+        {!sharedAccount ? (
+          <p className={styles.lead}>{mcp ? 'Manage your profile, email, security and AI assistant access.' : 'Manage your profile, email and security.'}</p>
+        ) : null}
       </header>
       <div className={settingsStyles.stack}>
         <ProfileSection />
-        <EmailSection />
-        <PasswordSection />
-        <SsoSection />
+        {!sharedAccount ? (
+          <>
+            <EmailSection />
+            <PasswordSection />
+            <SsoSection />
+          </>
+        ) : null}
         <AccessibilitySection />
         {mcp ? <ApiTokensSection /> : null}
         {aiProviders ? <AiProvidersSection /> : null}
-        <DangerSection />
+        {!sharedAccount ? <DangerSection /> : null}
       </div>
     </div>
   )
