@@ -144,7 +144,8 @@ class LogoutView(AuthView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        logout(request)
+        if not settings.DEV_AUTO_LOGIN:
+            logout(request)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -193,6 +194,8 @@ class MeView(CsrfProtectedMixin, GenericAPIView):
 
     @extend_schema(request=DeleteAccountSerializer, responses={204: NO_CONTENT}, tags=TAGS)
     def delete(self, request):
+        if settings.DEV_AUTO_LOGIN:
+            raise ApiError("shared_account", "The shared development account cannot be deleted.")
         serializer = DeleteAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data

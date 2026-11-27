@@ -6,7 +6,7 @@ import { useAuth } from './AuthProvider'
 import styles from './AccountMenu.module.css'
 
 export function AccountMenu() {
-  const { user, logout } = useAuth()
+  const { user, config, logout } = useAuth()
   const navigate = useNavigate()
   const { toast } = useToast()
   if (!user) return null
@@ -31,14 +31,18 @@ export function AccountMenu() {
         </button>
       }
     >
-      <MenuLabel>{user.email}</MenuLabel>
+      <MenuLabel>{config.features.dev_auto_login ? name : user.email}</MenuLabel>
       <MenuItem icon={<LayoutDashboard size={16} />} onSelect={() => navigate('/dashboard')}>
         {msg("Dashboard")}</MenuItem>
       <MenuItem icon={<Settings size={16} />} onSelect={() => navigate('/settings')}>
         {msg("Settings")}</MenuItem>
-      <MenuSeparator />
-      <MenuItem icon={<LogOut size={16} />} onSelect={() => void signOut()}>
-        {msg("Sign out")}</MenuItem>
+      {!config.features.dev_auto_login ? (
+        <>
+          <MenuSeparator />
+          <MenuItem icon={<LogOut size={16} />} onSelect={() => void signOut()}>
+            {msg("Sign out")}</MenuItem>
+        </>
+      ) : null}
     </Menu>
   )
 }

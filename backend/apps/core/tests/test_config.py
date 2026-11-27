@@ -43,6 +43,7 @@ def test_config_is_public_and_has_the_documented_shape(api):
         "google_login",
         "oidc_login",
         "email_verification",
+        "dev_auto_login",
         "background_removal",
         "realtime",
         "mcp",

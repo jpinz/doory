@@ -4,6 +4,7 @@ from .base import *
 from .base import env
 
 DEBUG = False
+DEV_AUTO_LOGIN = False
 SECRET_KEY = "test-secret-key-not-for-production"
 # SQLite in memory by default; CI also runs the suite on PostgreSQL via TEST_DATABASE_URL.
 DATABASES = {"default": env.db("TEST_DATABASE_URL", default="sqlite:///:memory:")}

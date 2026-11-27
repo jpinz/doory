@@ -13,6 +13,7 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", default="dev-insecure-secret-key-change-me
 # Previous keys still accepted for verification, so a key can be rotated without signing everyone out.
 SECRET_KEY_FALLBACKS = env.list("DJANGO_SECRET_KEY_FALLBACKS", default=[])
 DEBUG = env.bool("DJANGO_DEBUG", default=False)
+DEV_AUTO_LOGIN = env.bool("DEV_AUTO_LOGIN", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 SITE_URL = env("SITE_URL", default="http://localhost:5173")
 

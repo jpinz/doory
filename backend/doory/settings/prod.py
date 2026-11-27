@@ -4,6 +4,7 @@ from .base import *
 from .base import SECRET_KEY, SITE_URL, env
 
 DEBUG = False
+DEV_AUTO_LOGIN = False
 MIN_SECRET_KEY_LENGTH = 32  # `openssl rand -base64 48` gives 64
 if SECRET_KEY.startswith("dev-insecure") or len(SECRET_KEY) < MIN_SECRET_KEY_LENGTH:
     raise ImproperlyConfigured(
