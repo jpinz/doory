@@ -1,0 +1,4 @@
+# Orca runs this in every new worktree: dependencies, backend/.env and a database with the first-run content.
+# See docs/development/README.md.
+scripts:
+  setup: bash scripts/worktree-setup.sh
