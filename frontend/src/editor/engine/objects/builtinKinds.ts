@@ -24,6 +24,8 @@ import '../../dynamic/interactive/dice/DoryDie'
 import { readDie } from '../../dynamic/interactive/dice/model'
 import '../../dynamic/scorecard/DoryScoreCard'
 import { readScoreCard } from '../../dynamic/scorecard/model'
+import '../../dynamic/ransomNote/DoryRansomNote'
+import { readRansomNote } from '../../dynamic/ransomNote/model'
 
 
 const TEXT_TYPES = new Set(['textbox', 'itext', 'text'])
@@ -61,6 +63,18 @@ export function registerBuiltinKinds(): void {
     prepare(json) {
       const spec = readScoreCard(json.scoreCard)
       if (spec) json.scoreCard = spec
+    },
+  })
+
+  registerObjectKind({
+    id: 'ransom-note',
+    label: t.ransomNote.name,
+    priority: 110,
+    matches: (o) => typeOf(o) === 'doryransomnote',
+    extraProps: ['ransomNote'],
+    prepare(json) {
+      const spec = readRansomNote(json.ransomNote)
+      if (spec) json.ransomNote = spec
     },
   })
 

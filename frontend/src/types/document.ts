@@ -13,9 +13,30 @@ export interface GradientStop {
   color: string
 }
 
+/** How an animated background moves in presentations, previews and video exports; the editor shows its first frame. */
+export interface BackgroundMotion {
+  kind: 'drift' | 'rotate' | 'pulse' | 'zoom' | 'shift'
+  /** One loop of the motion, in ms. */
+  periodMs: number
+  /** Drift only: the direction in degrees (0 = right, 90 = down), in steps of 45. */
+  angle?: number
+  /** Rotate counter-clockwise, zoom out, or shift the colours the other way. */
+  reverse?: boolean
+}
+
 export type PageBackground =
   | { type: 'solid'; color: string }
-  | { type: 'gradient'; kind: 'linear' | 'radial'; angle?: number; stops: GradientStop[] }
+  | { type: 'gradient'; kind: 'linear' | 'radial'; angle?: number; stops: GradientStop[]; motion?: BackgroundMotion }
+  | {
+      type: 'pattern'
+      /** A `PatternId` (see `editor/engine/objects/patterns.ts`). */
+      pattern: string
+      color: string
+      paper: string
+      /** Tile edge (or spiral spacing) in page px. */
+      size: number
+      motion?: BackgroundMotion
+    }
   | {
       type: 'image'
       src: string

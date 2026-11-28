@@ -42,6 +42,7 @@ export function ShapesDrawer({ close }: PanelProps) {
     { id: 'star', label: t.basicShapes.star, icon: sv(<path d="M14 2l3.5 7.5L25 11l-5.5 5 1.5 8L14 20.5 7 24l1.5-8L3 11l7.5-1.5L14 2z" stroke="currentColor" strokeWidth="1.5" />), run: shape('star') },
     { id: 'diamond', label: t.shapes.diamond, icon: sv(<path d="M14 2L26 14 14 26 2 14z" stroke="currentColor" strokeWidth="1.5" />), run: shape('diamond') },
     { id: 'divider', label: t.drawers.divider, icon: sv(<line x1="2" y1="14" x2="26" y2="14" stroke="currentColor" strokeWidth="1" strokeDasharray="4 3" />), run: shape('divider') },
+    { id: 'spiral', label: t.shapes.spiral, icon: sv(<path d="M14 14c0-1 1.6-1.4 2.2-.4.8 1.4-.6 3.2-2.4 3-2.4-.2-3.4-3-2.2-5 1.6-2.6 5.4-2.8 7.4-.6 2.4 2.6 1.6 7-1.4 8.8-3.6 2.2-8.4.6-10-3.2C4 12 6.6 6.4 11.6 5.2 16.4 4 21.6 6.8 23.2 11.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />), run: shape('spiral') },
     { id: 'frame', label: t.drawers.frame, icon: sv(<rect x="4" y="2" width="20" height="24" rx="2" stroke="currentColor" strokeWidth="1.5" />), run: shape('frame') },
   ]
 

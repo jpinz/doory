@@ -233,6 +233,10 @@ export function documentColors(doc: DoryDocument, limit = 18): string[] {
   for (const page of doc.pages) {
     if (page.background.type === 'solid') add(page.background.color)
     if (page.background.type === 'gradient') for (const s of page.background.stops) add(s.color)
+    if (page.background.type === 'pattern') {
+      add(page.background.color)
+      add(page.background.paper)
+    }
     walkObjects(page.objects, (o) => {
       add(o.fill)
       add(o.stroke)

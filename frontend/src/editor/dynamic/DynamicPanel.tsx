@@ -2,7 +2,7 @@ import { useEditor } from '../context'
 import type { PanelProps } from '../panels/registry'
 import { t } from '../strings'
 import { WheelPreview } from './interactive/wheel/WheelPreview'
-import { Dices, Trophy } from 'lucide-react'
+import { CaseUpper, Dices, Trophy } from 'lucide-react'
 import ed from '../chrome/ed.module.css'
 import styles from './interactive/Interactive.module.css'
 
@@ -22,6 +22,10 @@ export function DynamicPanel({ close }: PanelProps) {
       <button type="button" className={styles.tile} aria-label={t.scoreboard.addCard} onClick={() => { void editor.scoreCards.insert(); close() }}>
         <Trophy aria-hidden="true" />
         <span>{t.scoreboard.card}</span>
+      </button>
+      <button type="button" className={styles.tile} aria-label={t.ransomNote.add} onClick={() => { void editor.ransomNotes.insert(); close() }}>
+        <CaseUpper aria-hidden="true" />
+        <span>{t.ransomNote.name}</span>
       </button>
     </section>
   )

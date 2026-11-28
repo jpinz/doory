@@ -6,7 +6,8 @@
  * How it stays fast: everything that does not change from frame to frame is drawn once. The page is cut along its
  * z-order into layers; each run of objects without animation (and the background) becomes one bitmap, each animated
  * object becomes a bitmap of its own, tight around the object and its shadow. A frame is then a stack of `drawImage`
- * calls with the transforms `sampleObject` asks for, and a frame in which nothing changed is not drawn again. Text
+ * calls with the transforms `sampleObject` asks for, and a frame in which nothing changed is not drawn again. A
+ * background with motion is not part of the first bitmap: it is drawn under the layers on every frame. Text
  * that steps through lines, words or letters is cut into one small bitmap per unit when the page is prepared.
  *
  * At rest (every enter finished, no exit started) a frame equals the page as the export renders it.
@@ -17,6 +18,7 @@ import { type ClipLook, drawWithLook, lookOf } from '../clips/look'
 import { type Clip, clipPlaysAt, clipShownAt, clipTimeAt, readClip } from '../clips/model'
 import { asDory } from '../engine/objects/dory'
 import { type BuiltBackground, buildBackground } from '../engine/objects/background'
+import { createMovingBackground } from '../engine/objects/backgroundMotion'
 import { renderableObjects } from '../engine/render'
 import { type LoadContext, deserializeObjects } from '../engine/serialization'
 import { DoryWheel } from '../dynamic/interactive/wheel/DoryWheel'
@@ -457,9 +459,10 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   const docs = options.interactive
     ? page.objects.filter((object) => renderableObjects([object]).length > 0 || object.type.toLowerCase() === 'doryscorecard')
     : renderableObjects(page.objects)
+  const moving = options.transparent ? null : createMovingBackground(page.background, size, m)
   const [objects, background] = await Promise.all([
     deserializeObjects(docs, ctx),
-    options.transparent ? Promise.resolve(null) : buildBackground(page.background, size.width, size.height, (s) => ctx.resolveSrc(s)),
+    options.transparent || moving ? Promise.resolve(null) : buildBackground(page.background, size.width, size.height, (s) => ctx.resolveSrc(s)),
   ])
   const media = options.media ? sharedSources(options.media) : null
   // Clips are played from their resolved addresses (a stored `/media/…` path may live on another origin).
@@ -485,7 +488,7 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
 
   let run: FabricObject[] = []
   const flushRun = (first: boolean): void => {
-    if (!first && run.length === 0) return
+    if ((!first || moving) && run.length === 0) return
     let region = pageRect
     if (!first) {
       region = intersect(unionRect(run.map((o) => boundsOf(o, shadowPad(o)))), pageRect)
@@ -633,7 +636,7 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
     width,
     height,
     canvas,
-    timing: pageTiming(page),
+    timing: pageTiming(moving ? page : { objects: page.objects }),
     hasClips: parts.length > 0,
     render(tMs: number): HTMLCanvasElement {
       if (disposed) return canvas
@@ -651,11 +654,16 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
         // A split part of a clip stands aside outside its own time, so the part before or after it shows.
         return layer.clip && !clipShownAt(layer.clip.spec, tMs) ? { ...sample, visible: false } : sample
       })
-      if (!moved && last && samples.every((s, i) => sameSample(s, last![i]))) return canvas
+      if (!moved && !moving && last && samples.every((s, i) => sameSample(s, last![i]))) return canvas
       last = samples
       surface.setTransform(1, 0, 0, 1, 0, 0)
       surface.globalAlpha = 1
       surface.clearRect(0, 0, width, height)
+      if (moving) {
+        moving.draw(surface, tMs)
+        surface.setTransform(1, 0, 0, 1, 0, 0)
+        surface.globalAlpha = 1
+      }
       let next = 0
       for (const layer of layers) {
         if (layer.kind === 'static') drawPlaced(surface, layer.tile)
@@ -678,6 +686,7 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
     dispose(): void {
       disposed = true
       last = null
+      moving?.dispose()
       for (const part of parts) {
         part.source.dispose()
         void part.holder.dispose()

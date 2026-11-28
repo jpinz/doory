@@ -18,7 +18,7 @@ import type { ArrowHead, MaskShape } from '@/types/document'
 import { fontStack } from '../text/fontStack'
 import { DoryLine } from './DoryLine'
 import type { DoryProps, QrSpec } from './dory'
-import { PATH_SHAPES, regularPolygonPoints, starPoints } from './shapeGeometry'
+import { PATH_SHAPES, SPIRAL_TURNS, pointsToOpenPath, regularPolygonPoints, spiralPoints, starPoints } from './shapeGeometry'
 import { applyMask } from './masks'
 import { applyColorMap, parseSvgElement, type ElementColorMap } from './elements'
 import { DEFAULT_QR, qrDataUrl } from './qr'
@@ -176,6 +176,22 @@ export function createPolygon(at: Placement, size: number, sides = 6): Polygon {
 
 export function createStar(at: Placement, size: number, points = 5, innerRatio = 0.45): Polygon {
   return polygonFrom(starPoints(points, innerRatio), at, size, { shapeKind: 'star', starPoints: points, innerRatio })
+}
+
+/** A stroked coil (no fill) that fills a `size` square; see `spiralPoints` for `turns` and `tightness`. */
+export function createSpiral(at: Placement, size: number, turns: number = SPIRAL_TURNS.initial, tightness = 0, strokeWidth = 2): Path {
+  const n = Math.max(SPIRAL_TURNS.min, Math.min(SPIRAL_TURNS.max, Math.round(turns)))
+  const tight = Math.max(0, Math.min(1, tightness))
+  const path = new Path(pointsToOpenPath(spiralPoints(n, tight)), {
+    ...baseShape(at, 0, 0),
+    fill: '',
+    stroke: SHAPE_FILL,
+    strokeWidth,
+    strokeLineCap: 'round',
+    strokeLineJoin: 'round',
+  })
+  path.set({ scaleX: size / 100, scaleY: size / 100, left: at.x, top: at.y })
+  return finish(path, { shapeKind: 'spiral', spiralTurns: n, spiralTightness: tight })
 }
 
 export function createPathShape(shapeId: string, at: Placement, size: number): Path | null {

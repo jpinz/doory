@@ -21,6 +21,7 @@ import { WheelsApi } from '../dynamic/interactive/wheel/api'
 import { DiceApi } from '../dynamic/interactive/dice/api'
 import { ScoreCardsApi } from '../dynamic/scorecard/api'
 import { editorScores } from '../dynamic/scorecard/DoryScoreCard'
+import { RansomNoteApi } from '../dynamic/ransomNote/api'
 import type { InteractiveKind } from '../dynamic/interactive/model'
 import { PagesApi } from './api/pages'
 import { StyleApi } from './api/style'
@@ -123,6 +124,7 @@ export class EditorEngine implements PageCanvasHost {
   readonly wheels: WheelsApi
   readonly dice: DiceApi
   readonly scoreCards: ScoreCardsApi
+  readonly ransomNotes: RansomNoteApi
   readonly arrange: ArrangeApi
   readonly style: StyleApi
   readonly pages: PagesApi
@@ -174,6 +176,7 @@ export class EditorEngine implements PageCanvasHost {
     this.wheels = new WheelsApi(this)
     this.dice = new DiceApi(this)
     this.scoreCards = new ScoreCardsApi(this)
+    this.ransomNotes = new RansomNoteApi(this)
     this.arrange = new ArrangeApi(this)
     this.style = new StyleApi(this)
     this.pages = new PagesApi(this)

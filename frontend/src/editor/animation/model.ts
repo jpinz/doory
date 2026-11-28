@@ -9,6 +9,7 @@
 import type { Anim, AnimDirection, AnimEasing, AnimTextUnit, DocObject, DocPage, DoryDocument, ObjectAnimation, PageTransition } from '@/types/document'
 import { isEasing } from './easing'
 import { pageClipTiming } from '../clips/model'
+import { backgroundMotion } from '../engine/objects/backgroundMotion'
 
 export type AnimSlot = 'enter' | 'exit' | 'emphasis'
 export const SLOTS: readonly AnimSlot[] = ['enter', 'exit', 'emphasis']
@@ -145,13 +146,13 @@ export interface PageTiming {
   introMs: number
   /** When the last animation that ends has finished (a looping emphasis never ends and is left out). */
   endMs: number
-  /** Some emphasis (or a video clip) repeats for as long as the page is up. */
+  /** Some emphasis (or a video clip, or a moving background) repeats for as long as the page is up. */
   loops: boolean
   /** Video clips on the page: they move the page too, until `endMs` (or for as long as it is up when one loops). */
   clips: number
 }
 
-export function pageTiming(page: Pick<DocPage, 'objects'>): PageTiming {
+export function pageTiming(page: Pick<DocPage, 'objects'> & Partial<Pick<DocPage, 'background'>>): PageTiming {
   const spans = pageSpans(page)
   let introMs = 0
   let endMs = 0
@@ -165,7 +166,8 @@ export function pageTiming(page: Pick<DocPage, 'objects'>): PageTiming {
     endMs = Math.max(endMs, span.endMs)
   }
   const clips = pageClipTiming(page)
-  return { spans, introMs, endMs: Math.max(endMs, clips.endMs), loops: loops || clips.loops, clips: clips.count }
+  const background = page.background ? backgroundMotion(page.background) !== null : false
+  return { spans, introMs, endMs: Math.max(endMs, clips.endMs), loops: loops || clips.loops || background, clips: clips.count }
 }
 
 /** True when anything on the page moves: an object animation of any kind. */
@@ -173,9 +175,9 @@ export function pageHasAnimation(page: Pick<DocPage, 'objects'>): boolean {
   return page.objects.some((o) => animationOf(o) !== null)
 }
 
-/** True when the page needs more than a still picture: object animations, or a transition into it. */
-export function pageHasMotion(page: Pick<DocPage, 'objects' | 'transition'>): boolean {
-  return pageHasAnimation(page) || transitionOf(page) !== null
+/** True when the page needs more than a still picture: object animations, a moving background, or a transition into it. */
+export function pageHasMotion(page: Pick<DocPage, 'objects' | 'transition'> & Partial<Pick<DocPage, 'background'>>): boolean {
+  return pageHasAnimation(page) || transitionOf(page) !== null || (page.background ? backgroundMotion(page.background) !== null : false)
 }
 
 export function documentHasMotion(doc: Pick<DoryDocument, 'pages'>): boolean {

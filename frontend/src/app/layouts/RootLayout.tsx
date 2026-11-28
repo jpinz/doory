@@ -12,6 +12,7 @@ export function RootLayout() {
   const lastPath = useRef(location.pathname)
 
   useEffect(() => {
+    if (location.pathname === '/create' && location.hash.startsWith('#ransom-note=')) return undefined
     // A link to `/#faq` or `#features` must scroll there; React Router changes the address but leaves the scrolling to us.
     if (location.hash) {
       lastPath.current = location.pathname

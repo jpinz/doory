@@ -412,6 +412,33 @@ def test_catalogue_shapes_can_be_added_and_resized():
         OPS.validate_python([{"op": "add_shape", "shape": "path", "path_shape": "unicorn"}])
 
 
+def test_summary_describes_pattern_and_moving_backgrounds():
+    document = make_doc()
+    page = document["pages"][0]
+    page["background"] = {
+        "type": "pattern",
+        "pattern": "spiral-rays",
+        "color": "#7a64e0",
+        "paper": "#ffffff",
+        "size": 48,
+        "motion": {"kind": "rotate", "periodMs": 4000},
+    }
+    valid(document)
+    assert summarize_document(document)["pages"][0]["background"] == {
+        "type": "pattern",
+        "pattern": "spiral-rays",
+        "colors": ["#7a64e0", "#ffffff"],
+        "motion": "rotate",
+    }
+    page["background"] = {
+        "type": "gradient",
+        "kind": "linear",
+        "angle": 90,
+        "stops": [{"offset": 0, "color": "#000"}],
+    }
+    assert "motion" not in summarize_document(document)["pages"][0]["background"]
+
+
 def test_pictures_can_be_masked_and_unmasked():
     document = run(
         make_doc(),

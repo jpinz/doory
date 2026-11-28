@@ -20,6 +20,7 @@ import type {
 import type { ImageGridSpec } from '../../grids/model'
 import type { WheelSpec } from '../../dynamic/interactive/wheel/model'
 import type { DieSpec } from '../../dynamic/interactive/dice/model'
+import type { RansomNoteSpec } from '../../dynamic/ransomNote/model'
 
 export interface QrSpec {
   text: string
@@ -27,7 +28,7 @@ export interface QrSpec {
   bg: string
 }
 
-export type ShapeKind = 'rect' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'path'
+export type ShapeKind = 'rect' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'spiral' | 'path'
 
 export interface DoryProps {
   id?: string
@@ -47,6 +48,7 @@ export interface DoryProps {
   imageGrid?: ImageGridSpec
   wheel?: WheelSpec
   die?: DieSpec
+  ransomNote?: RansomNoteSpec
   /** Stable cell label scoped to the containing image grid. */
   gridCellId?: string
   /** Slide this object opens when clicked during a presentation. */
@@ -73,6 +75,9 @@ export interface DoryProps {
   sides?: number
   starPoints?: number
   innerRatio?: number
+  spiralTurns?: number
+  /** 0 (evenly spaced coils) to 1 (coils bunched toward the centre). */
+  spiralTightness?: number
   arrowStart?: ArrowHead
   arrowEnd?: ArrowHead
   /** Doory-level filter list (the document format's `filters`); Fabric's own filter objects derive from it. */
