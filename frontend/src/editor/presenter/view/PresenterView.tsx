@@ -12,7 +12,7 @@ import { fitContain } from '../fit'
 import { actionForKey, isActivationKey } from '../keymap'
 import { formatClock } from '../timing'
 import { useElementSize } from '../useElementSize'
-import { openFlowMapWindow } from '../viewWindow'
+import { FlowMap, MAP_FRAMES } from './FlowMapView'
 import { bestFrame, configOf, extrapolate, frameWidthFor, pageClock, VIEW_TICK_MS } from './model'
 import { type Show, useShow } from './useShow'
 import styles from './PresenterView.module.css'
@@ -79,14 +79,15 @@ interface PresenterViewProps {
 }
 
 export function PresenterView({ session, createChannel }: PresenterViewProps) {
-  const link = useShow(session, createChannel)
+  // The flow map replaces the current page, the next page and the notes while it is shown.
+  const [mapOpen, setMapOpen] = useState(false)
+  const link = useShow(session, createChannel, mapOpen ? MAP_FRAMES : undefined)
   const { phase, show, lost, frames, interactiveStatus, send, request } = link
   const [now, setNow] = useState(() => performance.now())
   const [sizeIndex, setSizeIndex] = useState(storedSizeIndex)
   // Outlined in the current picture: what a button is pointed at or focused on, else what was last rolled or spun.
   const [aimed, setAimed] = useState<readonly string[] | null>(null)
   const [used, setUsed] = useState<{ pageId: string; ids: readonly string[] } | null>(null)
-  const [mapBlocked, setMapBlocked] = useState(false)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(performance.now()), VIEW_TICK_MS)
@@ -114,8 +115,8 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (phase !== 'live' && phase !== 'ended') return
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === '+' || e.key === '=' || e.key === '-')) {
+      if ((phase !== 'live' && phase !== 'ended') || e.defaultPrevented) return
+      if (!mapOpen && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === '+' || e.key === '=' || e.key === '-')) {
         e.preventDefault()
         changeSize(e.key === '-' ? -1 : 1)
         return
@@ -131,7 +132,7 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [phase, send, changeSize])
+  }, [phase, send, changeSize, mapOpen])
 
   const config = useMemo(() => (show ? configOf(show.pages) : null), [show])
   const state = show && config ? extrapolate(config, show.state, now - show.receivedAt) : null
@@ -193,79 +194,79 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
           {t.presenterView.lost}
         </p>
       ) : null}
-      {mapBlocked ? (
-        <p className={styles.lost} role="alert" data-testid="view-map-blocked">
-          {t.presenterView.flowMapBlocked}
-        </p>
-      ) : null}
-
-      <main className={styles.grid}>
-        <section className={styles.current} aria-label={t.presenterView.current}>
-          <h2 className={styles.label}>{t.presenterView.current}</h2>
-          <Preview which={t.presenterView.current} index={index} page={state.ended ? undefined : page} frames={frames} request={request} testId="view-current" empty={t.presenterView.endOfShow} marks={state.ended ? undefined : marks} />
-          {!state.ended && (page.wheels?.length || page.dice?.length) ? (
-            <div className={styles.interactives}>
-              {page.wheels?.map((wheel) => (
-                <button key={wheel.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim([wheel.id])} onClick={() => use([wheel.id], { action: 'spin-wheel', pageId: page.id, wheelId: wheel.id })}>
-                  {t.wheel.spin}: {wheel.label}
-                </button>
-              ))}
-              {page.dice && page.dice.length > 1 ? (
-                <button type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim(page.dice.map((die) => die.id))} onClick={() => use(page.dice!.map((die) => die.id), { action: 'roll-dice', pageId: page.id, dieIds: page.dice!.map((die) => die.id) })}>
-                  {t.dice.rollAll}
-                </button>
-              ) : null}
-              {page.dice?.map((die) => (
-                <button key={die.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim([die.id])} onClick={() => use([die.id], { action: 'roll-dice', pageId: page.id, dieIds: [die.id] })}>
-                  {t.dice.roll}: {die.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <output role="status" className={styles.interactiveStatus}>{!state.ended && interactiveStatus?.pageId === page.id ? interactiveStatus.text : ''}</output>
-          <div className={styles.timer} data-testid="view-timer">
-            <div className={styles.bar} aria-hidden="true">
-              <span style={{ transform: `scaleX(${clock.kind === 'running' ? clock.progress : 0})` }} />
-            </div>
-            <span className={styles.timerText} data-kind={clock.kind}>
-              {clock.kind === 'running'
-                ? t.presenterView.remaining(formatClock(Math.ceil(clock.remainingMs / 1000) * 1000))
-                : clock.kind === 'waits'
-                  ? t.presenterView.waits
-                  : clock.kind === 'paused'
-                    ? t.presenterView.pausedNote
-                    : t.presenterView.off}
-              {state.blackout ? ` · ${t.presenterView.blackoutNote}` : ''}
-            </span>
-          </div>
-        </section>
-
-        <aside className={styles.side}>
-          <section className={styles.next} aria-label={t.presenterView.next}>
-            <h2 className={styles.label}>{nextPage ? t.presenterView.next : t.presenterView.lastPage}</h2>
-            <Preview which={t.presenterView.next} index={nextPage ? show.pages.indexOf(nextPage) : index} page={nextPage} frames={frames} request={request} testId="view-next" empty={t.presenterView.endOfShow} />
-          </section>
-          <section className={styles.notes} aria-label={t.presenterView.notes}>
-            <div className={styles.notesHead}>
-              <h2 className={styles.label}>{t.presenterView.notes}</h2>
-              <span className={styles.sizer}>
-                <button type="button" className={styles.mini} aria-label={t.presenterView.smaller} disabled={sizeIndex === 0} data-testid="view-smaller" onClick={() => changeSize(-1)}>
-                  <Minus size={14} aria-hidden="true" />
-                </button>
-                <span className={styles.sizeValue} aria-label={t.presenterView.textSize(NOTES_SIZES[sizeIndex])} data-testid="view-size">
-                  {NOTES_SIZES[sizeIndex]}
-                </span>
-                <button type="button" className={styles.mini} aria-label={t.presenterView.larger} disabled={sizeIndex === NOTES_SIZES.length - 1} data-testid="view-larger" onClick={() => changeSize(1)}>
-                  <Plus size={14} aria-hidden="true" />
-                </button>
+      {mapOpen ? (
+        <main className={styles.map} data-testid="view-map">
+          <FlowMap link={link} />
+        </main>
+      ) : (
+        <main className={styles.grid}>
+          <section className={styles.current} aria-label={t.presenterView.current}>
+            <h2 className={styles.label}>{t.presenterView.current}</h2>
+            <Preview which={t.presenterView.current} index={index} page={state.ended ? undefined : page} frames={frames} request={request} testId="view-current" empty={t.presenterView.endOfShow} marks={state.ended ? undefined : marks} />
+            {!state.ended && (page.wheels?.length || page.dice?.length) ? (
+              <div className={styles.interactives}>
+                {page.wheels?.map((wheel) => (
+                  <button key={wheel.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim([wheel.id])} onClick={() => use([wheel.id], { action: 'spin-wheel', pageId: page.id, wheelId: wheel.id })}>
+                    {t.wheel.spin}: {wheel.label}
+                  </button>
+                ))}
+                {page.dice && page.dice.length > 1 ? (
+                  <button type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim(page.dice.map((die) => die.id))} onClick={() => use(page.dice!.map((die) => die.id), { action: 'roll-dice', pageId: page.id, dieIds: page.dice!.map((die) => die.id) })}>
+                    {t.dice.rollAll}
+                  </button>
+                ) : null}
+                {page.dice?.map((die) => (
+                  <button key={die.id} type="button" className={styles.ctl} disabled={finished || lost || state.blackout} {...aim([die.id])} onClick={() => use([die.id], { action: 'roll-dice', pageId: page.id, dieIds: [die.id] })}>
+                    {t.dice.roll}: {die.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <output role="status" className={styles.interactiveStatus}>{!state.ended && interactiveStatus?.pageId === page.id ? interactiveStatus.text : ''}</output>
+            <div className={styles.timer} data-testid="view-timer">
+              <div className={styles.bar} aria-hidden="true">
+                <span style={{ transform: `scaleX(${clock.kind === 'running' ? clock.progress : 0})` }} />
+              </div>
+              <span className={styles.timerText} data-kind={clock.kind}>
+                {clock.kind === 'running'
+                  ? t.presenterView.remaining(formatClock(Math.ceil(clock.remainingMs / 1000) * 1000))
+                  : clock.kind === 'waits'
+                    ? t.presenterView.waits
+                    : clock.kind === 'paused'
+                      ? t.presenterView.pausedNote
+                      : t.presenterView.off}
+                {state.blackout ? ` · ${t.presenterView.blackoutNote}` : ''}
               </span>
             </div>
-            <div className={styles.notesBody} tabIndex={0} aria-label={t.presenterView.notes} style={{ fontSize: NOTES_SIZES[sizeIndex] }} data-testid="view-notes">
-              {state.ended || page.notes.trim() === '' ? <p className={styles.noNotes}>{t.presenterView.noNotes}</p> : page.notes}
-            </div>
           </section>
-        </aside>
-      </main>
+
+          <aside className={styles.side}>
+            <section className={styles.next} aria-label={t.presenterView.next}>
+              <h2 className={styles.label}>{nextPage ? t.presenterView.next : t.presenterView.lastPage}</h2>
+              <Preview which={t.presenterView.next} index={nextPage ? show.pages.indexOf(nextPage) : index} page={nextPage} frames={frames} request={request} testId="view-next" empty={t.presenterView.endOfShow} />
+            </section>
+            <section className={styles.notes} aria-label={t.presenterView.notes}>
+              <div className={styles.notesHead}>
+                <h2 className={styles.label}>{t.presenterView.notes}</h2>
+                <span className={styles.sizer}>
+                  <button type="button" className={styles.mini} aria-label={t.presenterView.smaller} disabled={sizeIndex === 0} data-testid="view-smaller" onClick={() => changeSize(-1)}>
+                    <Minus size={14} aria-hidden="true" />
+                  </button>
+                  <span className={styles.sizeValue} aria-label={t.presenterView.textSize(NOTES_SIZES[sizeIndex])} data-testid="view-size">
+                    {NOTES_SIZES[sizeIndex]}
+                  </span>
+                  <button type="button" className={styles.mini} aria-label={t.presenterView.larger} disabled={sizeIndex === NOTES_SIZES.length - 1} data-testid="view-larger" onClick={() => changeSize(1)}>
+                    <Plus size={14} aria-hidden="true" />
+                  </button>
+                </span>
+              </div>
+              <div className={styles.notesBody} tabIndex={0} aria-label={t.presenterView.notes} style={{ fontSize: NOTES_SIZES[sizeIndex] }} data-testid="view-notes">
+                {state.ended || page.notes.trim() === '' ? <p className={styles.noNotes}>{t.presenterView.noNotes}</p> : page.notes}
+              </div>
+            </section>
+          </aside>
+        </main>
+      )}
 
       <footer className={styles.controls} role="toolbar" aria-label={t.presenterView.controls}>
         <button type="button" className={styles.ctl} disabled={finished || (index === 0 && !state.ended)} data-testid="view-prev" onClick={() => send({ action: 'prev' })}>
@@ -321,8 +322,9 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
           className={styles.ctl}
           disabled={finished}
           title={t.presenterView.flowMapOpen}
+          aria-pressed={mapOpen}
           data-testid="view-flow-map"
-          onClick={() => setMapBlocked(!session || openFlowMapWindow(session) === null)}
+          onClick={() => setMapOpen((open) => !open)}
         >
           <Workflow size={18} aria-hidden="true" />
           <span>{t.presenterView.flowMap}</span>

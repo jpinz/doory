@@ -50,10 +50,15 @@ export function useShow(session: string | null, createChannel?: (name: string) =
   const phaseRef = useRef(phase)
   const asked = useRef(new Map<string, number>())
   const urls = useRef<{ pageId: string; width: number; url: string }[]>([])
+  // Read when a picture arrives, so a new limit (the flow map opening) applies without reconnecting.
+  const maxFramesRef = useRef(maxFrames)
 
   useEffect(() => {
     phaseRef.current = phase
   }, [phase])
+  useEffect(() => {
+    maxFramesRef.current = maxFrames
+  }, [maxFrames])
 
   useEffect(() => {
     if (initial !== 'connecting' || !session) return
@@ -83,7 +88,7 @@ export function useShow(session: string | null, createChannel?: (name: string) =
           const same = stored.findIndex((f) => f.pageId === message.pageId && f.width === message.width)
           if (same >= 0) URL.revokeObjectURL(stored.splice(same, 1)[0].url)
           stored.push({ pageId: message.pageId, width: message.width, url })
-          while (stored.length > maxFrames) URL.revokeObjectURL(stored.shift()?.url ?? '')
+          while (stored.length > maxFramesRef.current) URL.revokeObjectURL(stored.shift()?.url ?? '')
           const next = new Map<string, ReceivedFrame[]>()
           for (const f of stored) next.set(f.pageId, [...(next.get(f.pageId) ?? []), { width: f.width, url: f.url }])
           setFrames(next)
@@ -116,7 +121,7 @@ export function useShow(session: string | null, createChannel?: (name: string) =
       linkRef.current = null
       for (const f of stored.splice(0)) URL.revokeObjectURL(f.url)
     }
-  }, [session, createChannel, initial, maxFrames])
+  }, [session, createChannel, initial])
 
   const send = useCallback((command: ViewCommand) => linkRef.current?.send({ kind: 'command', command }), [])
   const request = useCallback(

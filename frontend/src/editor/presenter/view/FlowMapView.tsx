@@ -1,23 +1,22 @@
 /**
- * The flow map: a window the presenter view opens beside itself. It draws the deck as the Flow tab lays it out
- * (section frames, Next arrows, an arrow from every linked element), follows the slide on screen, and shows any
- * slide the presenter clicks, as a followed link so Back returns. Like the presenter view it holds no document:
+ * The flow map: a panel the presenter view toggles in place of its notes. It draws the deck as the Flow tab lays it
+ * out (section frames, Next arrows, an arrow from every linked element), follows the slide on screen, and shows any
+ * slide the presenter clicks, as a followed link so Back returns. It shares the presenter view's link to the show:
  * the layout and the pictures come over the channel.
  */
 import { Minus, Plus } from 'lucide-react'
 import { type PointerEvent, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { t } from '../../strings'
-import type { ChannelLike, PagePreview } from '../channel'
+import type { PagePreview } from '../channel'
 import { fitContain } from '../fit'
 import { CARD_HEIGHT, CARD_WIDTH, edgePath, LANE, type Position, STEP, THUMB, thumbPoint } from '../../flow/layout'
 import { useInView } from '../../hooks/useInView'
 import { bestFrame, configOf, frameWidthFor } from './model'
-import { type Show, useShow } from './useShow'
-import viewStyles from './PresenterView.module.css'
+import type { Show } from './useShow'
 import styles from './FlowMapView.module.css'
 
 /** Enough pictures for every card of the largest deck, at one size each. */
-const MAP_FRAMES = 120
+export const MAP_FRAMES = 120
 const ZOOM_MIN = 0.2
 const ZOOM_MAX = 2.5
 const ZOOM_STEP = 1.25
@@ -45,13 +44,13 @@ function Thumb({ page, frames, request }: { page: PagePreview; frames: Show['fra
   )
 }
 
-interface FlowMapViewProps {
-  session: string | null
-  createChannel?: (name: string) => ChannelLike | null
+interface FlowMapProps {
+  /** The presenter view's link to the show; give it room for `MAP_FRAMES` pictures while the map is shown. */
+  link: Show
 }
 
-export function FlowMapView({ session, createChannel }: FlowMapViewProps) {
-  const { phase, show, lost, frames, send, request } = useShow(session, createChannel, MAP_FRAMES)
+export function FlowMap({ link }: FlowMapProps) {
+  const { phase, show, frames, send, request } = link
   const cards = useRef(new Map<number, HTMLButtonElement>())
   const config = useMemo(() => (show ? configOf(show.pages) : null), [show])
   const marker = `map${useId().replace(/:/g, '')}`
@@ -123,27 +122,11 @@ export function FlowMapView({ session, createChannel }: FlowMapViewProps) {
     setPanning(false)
   }
 
-  const showTitle = show?.title
-  const showTheme = show?.theme
-  useEffect(() => {
-    if (showTitle !== undefined) document.title = `${t.presenterView.flowMap}: ${showTitle}`
-    if (showTheme) document.documentElement.dataset.theme = showTheme
-  }, [showTitle, showTheme])
-
   useEffect(() => {
     cards.current.get(current)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'smooth' })
   }, [current])
 
-  if (phase === 'invalid' || phase === 'unsupported' || phase === 'ended' || !show || !config) {
-    const message = phase === 'invalid' ? t.presenterView.invalid : phase === 'unsupported' ? t.presenterView.unsupported : phase === 'ended' ? t.presenterView.ended : t.presenterView.connecting
-    return (
-      <main className={viewStyles.card} data-testid="map-status">
-        <h1>{t.presenterView.flowMap}</h1>
-        <p role={phase === 'connecting' ? 'status' : 'alert'}>{message}</p>
-        {phase === 'ended' ? <button type="button" className={`${viewStyles.ctl} ${viewStyles.primary}`} onClick={() => window.close()}>{t.presenterView.closeWindow}</button> : null}
-      </main>
-    )
-  }
+  if (!show || !config) return null
 
   const pages = show.pages
   const positions: Position[] = pages.map((page, index) => page.flow ?? { x: 60 + (index % 4) * STEP, y: 80 + Math.floor(index / 4) * LANE })
@@ -182,7 +165,6 @@ export function FlowMapView({ session, createChannel }: FlowMapViewProps) {
   return (
     <div className={styles.root} data-testid="map-root">
       <header className={styles.header}>
-        <h1 className={styles.title}>{show.title}</h1>
         <span className={styles.hint}>{t.presenterView.flowMapHint}</span>
         <span className={styles.legend}>
           <span className={styles.nextKey}>{t.flowBoard.next}</span>
@@ -195,7 +177,6 @@ export function FlowMapView({ session, createChannel }: FlowMapViewProps) {
           <button type="button" aria-label={t.workspace.zoomIn} disabled={zoom >= ZOOM_MAX} onClick={() => zoomTo(zoom * ZOOM_STEP)}><Plus size={14} aria-hidden="true" /></button>
         </span>
       </header>
-      {lost ? <p className={viewStyles.lost} role="alert">{t.presenterView.lost}</p> : null}
       <div
         ref={attach}
         className={`${styles.scroll} ${panning ? styles.panning : ''}`}
@@ -211,6 +192,9 @@ export function FlowMapView({ session, createChannel }: FlowMapViewProps) {
           if (event.key === '+' || event.key === '=') zoomTo(zoom * ZOOM_STEP)
           else if (event.key === '-') zoomTo(zoom / ZOOM_STEP)
           else if (event.key === '0') zoomTo(1)
+          else return
+          // Handled here: the presenter view's own shortcuts leave it alone.
+          event.preventDefault()
         }}
       >
         <div className={styles.space} style={{ width: width * zoom, height: height * zoom }}>

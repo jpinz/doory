@@ -292,18 +292,29 @@ describe('PresenterView', () => {
     }
   })
 
-  it('opens the flow map in its own window, and says so when the browser blocks it', async () => {
+  it('toggles the flow map in place of the notes, without opening a window', async () => {
     const a = audience()
-    const open = vi.spyOn(window, 'open').mockReturnValueOnce({ focus: vi.fn() } as unknown as Window).mockReturnValueOnce(null)
+    const open = vi.spyOn(window, 'open')
     render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
     await waitFor(() => expect(a.received.some((m) => m.kind === 'hello')).toBe(true))
     act(() => a.init())
-    await userEvent.click(await screen.findByTestId('view-flow-map'))
-    expect(String(open.mock.calls[0][0])).toContain(`session=${SESSION}`)
-    expect(String(open.mock.calls[0][0])).toContain('panel=flow')
-    expect(screen.queryByTestId('view-map-blocked')).toBeNull()
-    await userEvent.click(screen.getByTestId('view-flow-map'))
-    expect(screen.getByTestId('view-map-blocked')).toHaveTextContent(t.presenterView.flowMapBlocked)
+    const toggle = await screen.findByTestId('view-flow-map')
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    const size = screen.getByTestId('view-size').textContent
+
+    await userEvent.click(toggle)
+    expect(open).not.toHaveBeenCalled()
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('map-root')).toBeInTheDocument()
+    expect(screen.queryByTestId('view-notes')).toBeNull()
+    // The map's zoom keys don't also change the notes size.
+    screen.getByTestId('map-scroll').focus()
+    await userEvent.keyboard('+')
+    expect(screen.getByTestId('map-zoom')).toHaveTextContent('125%')
+
+    await userEvent.click(toggle)
+    expect(screen.queryByTestId('map-root')).toBeNull()
+    expect(screen.getByTestId('view-size')).toHaveTextContent(size ?? '')
     open.mockRestore()
   })
 })

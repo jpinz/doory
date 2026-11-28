@@ -152,7 +152,7 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
     const opened = openLink(session, 'show', createChannel)
     linkRef.current = opened
     if (!opened) return
-    // The presenter view and its flow map each say hello; a window without an id stands for all of them.
+    // Every view window says hello with its own id; a window without an id stands for all of them.
     const views = new Set<string>()
     const off = opened.subscribe((message) => {
       const o = latest.current

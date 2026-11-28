@@ -3,12 +3,10 @@
  * command that starts "Present with notes" opens the window itself, before the slideshow mounts, and leaves the
  * handle here for the slideshow to pick up by session id. A blocked pop-up gives `null`.
  */
-import { flowMapUrl, presenterViewUrl } from './channel'
+import { presenterViewUrl } from './channel'
 
 const WINDOW_NAME = 'doory-presenter-view'
 const FEATURES = 'popup=yes,width=1180,height=780,left=40,top=40'
-const FLOW_WINDOW_NAME = 'doory-presenter-flow'
-const FLOW_FEATURES = 'popup=yes,width=1100,height=720,left=80,top=80'
 
 const handoff = new Map<string, Window>()
 
@@ -17,18 +15,6 @@ export function openViewWindow(session: string): Window | null {
   let win: Window | null = null
   try {
     win = window.open(presenterViewUrl(session), WINDOW_NAME, FEATURES)
-  } catch {
-    win = null
-  }
-  win?.focus()
-  return win
-}
-
-/** Opens (or re-uses) the flow map window of `session`, from a click in the presenter view. */
-export function openFlowMapWindow(session: string): Window | null {
-  let win: Window | null = null
-  try {
-    win = window.open(flowMapUrl(session), FLOW_WINDOW_NAME, FLOW_FEATURES)
   } catch {
     win = null
   }
