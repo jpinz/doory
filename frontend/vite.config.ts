@@ -1,12 +1,36 @@
 /// <reference types="vitest/config" />
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath, URL } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 const API_TARGET = process.env.VITE_API_PROXY ?? 'http://localhost:8000'
+const ROOT = fileURLToPath(new URL('.', import.meta.url))
+
+function gitRef(...args: string[]): string {
+  try {
+    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch {
+    return ''
+  }
+}
+
+function debugBranch(): string {
+  const branch = gitRef('symbolic-ref', '--quiet', '--short', 'HEAD')
+  const defaultBranch = gitRef('symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD').replace(/^origin\//, '')
+  return branch && branch !== defaultBranch && branch !== 'main' && branch !== 'master' ? branch : ''
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'debug-branch',
+      config: (_config, { command, mode }) => ({
+        define: { __DEBUG_BRANCH__: JSON.stringify(command === 'serve' && mode !== 'test' ? debugBranch() : '') },
+      }),
+    },
+  ],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   // Loaded with import() when a video is made: listed so the dev server bundles them at start instead of discovering them
   // mid-session, which reloads the page under a running test.

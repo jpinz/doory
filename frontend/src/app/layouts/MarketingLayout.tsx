@@ -4,6 +4,7 @@ import { GitBranch, Menu as MenuIcon, X } from 'lucide-react'
 import { Suspense, useState, useSyncExternalStore } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { PageLoader } from '@/app/PageLoader'
+import { DebugBranchBadge } from '@/app/DebugBranchBadge'
 import { AccountMenu } from '@/features/auth/AccountMenu'
 import { useAuth } from '@/features/auth/AuthProvider'
 import bunny from '@/assets/bunny-sticker.webp'
@@ -49,6 +50,7 @@ export function MarketingHeader() {
         <Link to="/" className={styles.logo} aria-label={msg("Doory home")}>
           <Logo height={30} />
         </Link>
+        <DebugBranchBadge />
         <div className={styles.desktopNav}>
           <HeaderNav orientation="row" />
         </div>
