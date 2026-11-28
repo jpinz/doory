@@ -35,6 +35,7 @@ interface TopBarProps {
 
 /** Below this bar width File, Edit and View become one menu and the title moves into the left-hand group. */
 const NARROW_BAR = 760
+const PRESENT_BAR = 1200
 
 function TitleField({ onTitle }: { onTitle: (title: string) => void }) {
   const editor = useEditor()
@@ -108,10 +109,7 @@ function MenuButton({ label, items, testId, icon, onOpen }: { label: string; ite
   )
 }
 
-/**
- * The one primary action: sharing with people, downloading and presenting live in a single menu, so the bar
- * keeps one call to action instead of three buttons side by side.
- */
+/** Sharing and downloads, with presentation actions also available when the bar has no room for their buttons. */
 function ShareMenu({ onPresent }: { onPresent: () => void }) {
   const editor = useEditor()
   const mode = useEditorState((s) => s.mode)
@@ -243,7 +241,7 @@ function useWidth(ref: React.RefObject<HTMLElement | null>): number {
 
 /**
  * The bar: the design's menus, history and save state on the left, its title in the middle, and the people,
- * comments and the one Share menu on the right. The tools that add to the design live in the rail (ToolRail).
+ * comments, presentation actions and Share menu on the right. The tools that add to the design live in the rail (ToolRail).
  */
 export function TopBar({ start, end, onTitle, onPresent }: TopBarProps) {
   const editor = useEditor()
@@ -267,6 +265,8 @@ export function TopBar({ start, end, onTitle, onPresent }: TopBarProps) {
   const barRef = useRef<HTMLElement>(null)
   const barWidth = useWidth(barRef)
   const narrow = barWidth > 0 && barWidth < NARROW_BAR
+  const showPresent = barWidth >= PRESENT_BAR
+  const presentNotes = commands.get('file.presentNotes')
 
   const endTools = visible.filter((p) => p.slot === 'end' && (!readOnly || p.readOnly))
 
@@ -343,7 +343,7 @@ export function TopBar({ start, end, onTitle, onPresent }: TopBarProps) {
   }, [readOnly, editor])
 
   return (
-    <header ref={barRef} className={styles.bar} data-testid="ed-topbar" data-narrow={narrow || undefined}>
+    <header ref={barRef} className={styles.bar} data-testid="ed-topbar" data-narrow={narrow || undefined} data-present={showPresent || undefined}>
       <div className={styles.left}>
         {start}
         {narrow ? (
@@ -385,6 +385,20 @@ export function TopBar({ start, end, onTitle, onPresent }: TopBarProps) {
         </div>
         {!narrow ? endTools.map((p) => <EndTool key={p.id} panel={p} open={openId === p.id} onToggle={() => toggle(p.id)} />) : null}
         {end ? <div className={styles.end}>{end}</div> : null}
+        {showPresent ? (
+          <>
+            <button type="button" className={`${ed.btn} ${ed.ghost}`} data-testid="ed-present" onPointerEnter={() => preloadDialog('presenter')} onFocus={() => preloadDialog('presenter')} onClick={onPresent}>
+              <Presentation size={16} aria-hidden="true" />
+              {t.cmd.filePresent}
+            </button>
+            {presentNotes ? (
+              <button type="button" className={`${ed.btn} ${ed.ghost}`} data-testid="ed-present-notes" onPointerEnter={() => preloadDialog('presenter')} onFocus={() => preloadDialog('presenter')} onClick={() => void presentNotes.run(editor)}>
+                <Presentation size={16} aria-hidden="true" />
+                {presentNotes.label}
+              </button>
+            ) : null}
+          </>
+        ) : null}
         <ShareMenu onPresent={onPresent} />
       </div>
     </header>

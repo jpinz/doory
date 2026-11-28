@@ -27,14 +27,14 @@ vi.mock('../engine/export/exporter', async (importOriginal) => ({
   runExport: vi.fn(async () => [{ blob: new Blob(['x']), filename: 'Test.jpg' }]),
 }))
 
-async function mount(mode?: 'guest' | 'shared-view', doc?: DoryDocument, exportProject?: () => Promise<{ blob: Blob; filename: string }>) {
+async function mount(mode?: 'guest' | 'shared-view', doc?: DoryDocument, exportProject?: () => Promise<{ blob: Blob; filename: string }>, onPresent = () => undefined) {
   const { engine } = await setupEditor({ mode, doc })
   if (exportProject) engine.adapter.exportProject = exportProject
   await act(async () => {
     render(
       <EditorProvider engine={engine} portalRoot={document.body}>
         <ChromeProvider>
-          <TopBar onTitle={() => undefined} onPresent={() => undefined} />
+          <TopBar onTitle={() => undefined} onPresent={onPresent} />
           <ToolRail edge="side" />
           <SidebarHost />
         </ChromeProvider>
@@ -222,7 +222,41 @@ describe('editor chrome', () => {
     expect(document.documentElement.dataset.contrast).toBe('more')
   })
 
-  it('gathers sharing, downloads and presenting in the one Share menu', async () => {
+  it.each([undefined, 'shared-view'] as const)('presents directly from the wide header in %s mode', async (mode) => {
+    const onPresent = vi.fn()
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    engine = await mount(mode, undefined, undefined, onPresent)
+    const bar = within(screen.getByTestId('ed-topbar'))
+    await userEvent.click(bar.getByRole('button', { name: t.cmd.filePresent }))
+    expect(onPresent).toHaveBeenCalledOnce()
+    await userEvent.click(bar.getByRole('button', { name: t.cmd.filePresentNotes }))
+    expect(open).toHaveBeenCalledOnce()
+    expect(open.mock.calls[0][0]).toContain('presenter-view.html')
+    expect(engine.state.ui.dialog).toEqual({ id: 'presenter', props: { session: expect.any(String), withNotes: true } })
+  })
+
+  it.each([400, 900])('keeps both presentation actions in Share when the header is %i pixels wide', async (width) => {
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(): void { this.callback([{ contentRect: { width } } as ResizeObserverEntry], this as unknown as ResizeObserver) }
+      disconnect(): void {}
+      unobserve(): void {}
+    })
+    const onPresent = vi.fn()
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    engine = await mount(undefined, undefined, undefined, onPresent)
+    expect(screen.queryByTestId('ed-present')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ed-present-notes')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('ed-share'))
+    await userEvent.click(screen.getByRole('menuitem', { name: t.topbar.presentFull }))
+    expect(onPresent).toHaveBeenCalledOnce()
+    await userEvent.click(screen.getByTestId('ed-share'))
+    await userEvent.click(screen.getByRole('menuitem', { name: t.cmd.filePresentNotes }))
+    expect(open).toHaveBeenCalledOnce()
+    expect(engine.state.ui.dialog?.props).toMatchObject({ withNotes: true })
+  })
+
+  it('keeps sharing, downloads and presenting available in the Share menu', async () => {
     engine = await mount()
     expect(screen.queryByTestId('ed-download')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('ed-share'))
