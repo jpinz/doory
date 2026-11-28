@@ -15,6 +15,7 @@ import { applySlotClip } from '../objects/masks'
 import { coverSlotTransform, shiftSlot, slotOf } from '../objects/slot'
 import { asDory } from '../objects/dory'
 import { DEFAULT_QR } from '../objects/qr'
+import { SPIRAL_TURNS } from '../objects/shapeGeometry'
 import {
   TEXT_PRESETS,
   type TextPreset,
@@ -31,6 +32,7 @@ import {
   createPolygon,
   createQrCode,
   createRect,
+  createSpiral,
   createStar,
   createTextbox,
   createTriangle,
@@ -54,7 +56,7 @@ import { t } from '../../strings'
 import { reidTree } from './arrange'
 import { clipPropsFromAsset, isClip } from '../../clips/model'
 
-export type ShapeKind = 'rect' | 'rounded' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'diamond' | 'line' | 'arrow' | 'divider' | 'frame'
+export type ShapeKind = 'rect' | 'rounded' | 'ellipse' | 'triangle' | 'polygon' | 'star' | 'spiral' | 'diamond' | 'line' | 'arrow' | 'divider' | 'frame'
 
 const MAX_SVG_BYTES = 2 * 1024 * 1024
 
@@ -196,6 +198,10 @@ export class InsertApi {
       case 'star':
         obj = softShape(createStar(at, Math.round(62 * k), 5, 0.45), page)
         label = t.history.addStar
+        break
+      case 'spiral':
+        obj = createSpiral(at, unit, SPIRAL_TURNS.initial, 0, Math.max(1, Math.round(3 * k)))
+        label = t.history.addSpiral
         break
       case 'diamond':
         obj = softShape(createPolygon(at, Math.round(60 * k), 4), page)

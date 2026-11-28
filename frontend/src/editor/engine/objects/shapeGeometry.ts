@@ -36,6 +36,36 @@ export function starPoints(points: number, innerRatio: number, size = 100): Pt[]
   return normalizePoints(pts, size)
 }
 
+export const SPIRAL_TURNS = { min: 1, max: 20, initial: 4 } as const
+const SPIRAL_STEPS_PER_TURN = 72
+
+/**
+ * A circular coil from the centre of a `size` box out to its edge, with `turns` turns. `tightness` (0..1) bunches the inner coils toward the centre: 0 spaces
+ * them evenly, 1 squeezes them most (the radius grows with the angle to the power 1 + 2·tightness).
+ */
+export function spiralPoints(turns: number, tightness: number, size = 100): Pt[] {
+  const n = Math.max(SPIRAL_TURNS.min, Math.min(SPIRAL_TURNS.max, Math.round(turns)))
+  const power = 1 + 2 * Math.max(0, Math.min(1, tightness))
+  const steps = n * SPIRAL_STEPS_PER_TURN
+  const total = n * 2 * Math.PI
+  const half = size / 2
+  const pts: Pt[] = []
+  for (let i = 0; i <= steps; i++) {
+    const f = i / steps
+    const r = f ** power
+    // Ends on the right, at the outermost point.
+    const a = f * total - total
+    pts.push({ x: round(half + half * r * Math.cos(a)), y: round(half + half * r * Math.sin(a)) })
+  }
+  // Not stretched to the box like the polygons: that would make the coil oval and uneven.
+  return pts
+}
+
+/** An open path through `pts` (no closing segment). */
+export function pointsToOpenPath(pts: readonly Pt[]): string {
+  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')
+}
+
 /** Fits the points tightly into [0,size]² so the shape fills its bounding box regardless of vertex count. */
 function normalizePoints(pts: Pt[], size: number): Pt[] {
   const xs = pts.map((p) => p.x)

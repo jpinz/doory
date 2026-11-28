@@ -724,6 +724,8 @@ def replace_image(
             "sides",
             "starPoints",
             "innerRatio",
+            "spiralTurns",
+            "spiralTightness",
         ):
             obj.pop(key, None)
         if not was_image:

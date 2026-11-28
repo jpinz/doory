@@ -8,6 +8,7 @@ import { t } from '../strings'
 import { toggleTimeline } from '../workspace/timelineVisibility'
 import { playbackOf } from './playback'
 import { pageHasAnimation } from './model'
+import { backgroundMotion } from '../engine/objects/backgroundMotion'
 import { previewLengthMs } from './timelineMath'
 
 registerCommand({ id: 'view.timeline', label: t.animation.cmd.timeline, shortcut: 'Shift+T', group: t.cmdGroup.view, icon: <Clapperboard size={18} />, run: (e) => toggleTimeline(e) })
@@ -24,7 +25,7 @@ registerCommand({
   },
   enabled: ({ editor, state }) => {
     const page = editor.getPage(state.activePageId)
-    return !!page && pageHasAnimation(page)
+    return !!page && (pageHasAnimation(page) || backgroundMotion(page.background) !== null)
   },
 })
 

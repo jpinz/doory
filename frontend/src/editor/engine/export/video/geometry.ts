@@ -4,6 +4,7 @@
  */
 import type { DocPage } from '@/types/document'
 import { parseColor, rgbaToHex } from '../../colors'
+import { readPattern } from '../../objects/patterns'
 import { FORMAT_RULES, type FitMode, type Resolution, type VideoFormat } from './options'
 
 export interface Size {
@@ -72,7 +73,7 @@ function opaqueHex(color: string): string | null {
 
 /**
  * The colour of the bars around a page: the page's own colour, so a page that does not fill the frame looks like a
- * page on a table of its colour. A gradient gives its first stop; a picture, whose colour is not known without loading
+ * page on a table of its colour. A gradient gives its first stop, a pattern its paper colour; a picture, whose colour is not known without loading
  * it, gives black (the same as the slideshow's stage).
  */
 export function barColour(page: Pick<DocPage, 'background'>): string {
@@ -82,5 +83,6 @@ export function barColour(page: Pick<DocPage, 'background'>): string {
     const first = [...background.stops].sort((a, b) => a.offset - b.offset)[0]
     return (first && opaqueHex(first.color)) ?? '#000000'
   }
+  if (background.type === 'pattern') return opaqueHex(readPattern(background).paper) ?? '#000000'
   return '#000000'
 }

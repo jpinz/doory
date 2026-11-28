@@ -3,7 +3,7 @@
  * image adjustments, masks, upscaling, recolouring, links and QR content. Continuous controls (sliders, colour
  * scrubbing) pass a `key` so their steps coalesce into one undo step.
  */
-import { type FabricImage, type FabricObject, IText, Point, Polygon, Rect, Shadow, util } from 'fabric'
+import { type FabricImage, type FabricObject, IText, Path, Point, Polygon, Rect, Shadow, util } from 'fabric'
 import type { ArrowHead, DocField, DocTextFit, ImageFilterSpec, MaskShape, ObjectEffects, ShadowSpec } from '@/types/document'
 import type { AssetRef } from '@/types/adapter'
 import type { EditorEngine } from '../editor'
@@ -12,6 +12,7 @@ import { UpscaleError, fitsOutput, maxOutputPixels, targetSize, upscaleImage as 
 import { MAX_UPLOAD_BYTES } from '../assets'
 import { DoryLine } from '../objects/DoryLine'
 import { asDory } from '../objects/dory'
+import { getExtraProps } from '../serialization'
 import { SVG_EDIT_LIMITS, applyColorMap, elementColors, isSvgSource, parseSvgElement, shapeCount, svgEditProblem, type ElementColorMap } from '../objects/elements'
 import { applyEffects } from '../objects/effects'
 import { readField } from '../fields'
@@ -19,7 +20,7 @@ import { type FillSpec, buildFill } from '../objects/fills'
 import { FILTER_PRESETS, applyImageFilters, normalizeSpecs, withSpec } from '../objects/filters'
 import { applyMask } from '../objects/masks'
 import { hasSlot } from '../objects/slot'
-import { createPlaceholder, createPolygon, createStar } from '../objects/factories'
+import { createPlaceholder, createPolygon, createSpiral, createStar } from '../objects/factories'
 import { type TextPatch, applyTextFit, applyTextPatch, refitTextbox, sanitizeTextPatch } from '../objects/textStyle'
 import { CORNER_RADIUS_MAX, STROKE_WIDTH_MAX, clampOrUndefined } from '../numbers'
 import { qrDataUrl } from '../objects/qr'
@@ -85,6 +86,9 @@ function isEditableSvgChild(object: FabricObject): boolean {
   }
   return false
 }
+
+/** Props that describe a parametric shape's geometry: a rebuilt shape brings its own. */
+const SHAPE_DESCRIPTORS = new Set(['shapeKind', 'shapeId', 'sides', 'starPoints', 'innerRatio', 'spiralTurns', 'spiralTightness'])
 
 export class StyleApi {
   constructor(private readonly engine: EditorEngine) {}
@@ -255,11 +259,10 @@ export class StyleApi {
   private swap(oldObj: FabricObject, next: FabricObject): void {
     const view = this.engine.activeView()
     if (!view) return
-    const d = asDory(oldObj)
-    const nd = asDory(next)
-    nd.id = d.id
-    nd.name = d.name
-    nd.locked = d.locked
+    // Everything Doory keeps on the object (id, animation, link, field, effects…) except what makes the new shape.
+    const own = next as unknown as Record<string, unknown>
+    const old = oldObj as unknown as Record<string, unknown>
+    for (const key of getExtraProps()) if (!SHAPE_DESCRIPTORS.has(key) && old[key] !== undefined) own[key] = old[key]
     next.set({
       left: oldObj.left,
       top: oldObj.top,
@@ -273,7 +276,6 @@ export class StyleApi {
       opacity: oldObj.opacity,
       shadow: oldObj.shadow,
     })
-    nd.effects = d.effects
     const index = view.canvas.getObjects().indexOf(oldObj)
     view.canvas.remove(oldObj)
     view.configure(next)
@@ -299,6 +301,16 @@ export class StyleApi {
     next.set({ scaleX: obj.scaleX, scaleY: obj.scaleY })
     this.swap(obj, next)
     this.finish(t.history.changeStar, 'star')
+  }
+
+  setSpiral(patch: { turns?: number; tightness?: number }): void {
+    const obj = this.targets()[0]
+    if (!(obj instanceof Path) || asDory(obj).shapeKind !== 'spiral') return
+    const d = asDory(obj)
+    const next = createSpiral({ x: 0, y: 0 }, 100, patch.turns ?? d.spiralTurns, patch.tightness ?? d.spiralTightness ?? 0)
+    next.set({ scaleX: obj.scaleX, scaleY: obj.scaleY })
+    this.swap(obj, next)
+    this.finish(t.history.changeSpiral, 'spiral')
   }
 
   setLine(patch: { arrowStart?: ArrowHead; arrowEnd?: ArrowHead; width?: number; color?: string; dash?: DashStyle }): void {

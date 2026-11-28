@@ -5,6 +5,7 @@
 import type { DocObject, DocPage } from '@/types/document'
 import { pageDuration, pageSeconds } from '../presenter/timing'
 import { type AnimSlot, DELAY_RANGE, DURATION_RANGE, type AnimSpan, TIME_STEP_MS, clampNumber, pageTiming } from './model'
+import { backgroundMotion } from '../engine/objects/backgroundMotion'
 
 /** Widest view of the time axis: 16 times the fitted scale. */
 export const MAX_ZOOM = 16
@@ -192,12 +193,13 @@ export function fittingDurationSec(page: Pick<DocPage, 'objects' | 'durationSec'
 
 /**
  * How long a preview runs: until the last animation has ended and the page time (if it has one) is over; a page with
- * only looping emphasis shows a few cycles.
+ * only looping emphasis (or a moving background) shows a few cycles.
  */
-export function previewLengthMs(page: Pick<DocPage, 'objects' | 'durationSec'>): number {
+export function previewLengthMs(page: Pick<DocPage, 'objects' | 'durationSec'> & Partial<Pick<DocPage, 'background'>>): number {
   const timing = pageTiming(page)
   const marker = pageMarkerMs(page) ?? 0
-  const loops = timing.loops ? Math.max(0, ...timing.spans.filter((s) => s.anim.loop === true).map((s) => s.endMs)) + 1500 : 0
+  const background = page.background ? (backgroundMotion(page.background)?.periodMs ?? 0) : 0
+  const loops = timing.loops ? Math.max(0, background, ...timing.spans.filter((s) => s.anim.loop === true).map((s) => s.endMs)) + 1500 : 0
   // A page with clips plays for as long as it is up (a looping clip has no end of its own).
   const clips = timing.clips > 0 ? pageHoldEndMs(page) : 0
   return Math.max(timing.endMs, marker, loops, clips, 500)

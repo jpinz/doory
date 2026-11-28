@@ -79,7 +79,7 @@ async function buildStaticCanvas(
   })
   const [objects, background] = await Promise.all([
     deserializeObjects(stillObjects(page.objects), ctx),
-    transparent ? Promise.resolve(null) : buildBackground(page.background, frameWidth, frameHeight, (s) => ctx.resolveSrc(s)),
+    transparent ? Promise.resolve(null) : buildBackground(page.background, frameWidth, frameHeight, (s) => ctx.resolveSrc(s), bleed),
   ])
   installBackground(canvas, background, frameWidth, frameHeight)
   // Fabric counts a shape's default 1 px stroke width in its size even without a stroke, which would leave the first

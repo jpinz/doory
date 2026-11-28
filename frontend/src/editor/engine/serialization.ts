@@ -74,6 +74,8 @@ export const EXTRA_PROPS: readonly string[] = [
   'sides',
   'starPoints',
   'innerRatio',
+  'spiralTurns',
+  'spiralTightness',
   /** Line / arrow heads. */
   'arrowStart',
   'arrowEnd',

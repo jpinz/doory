@@ -23,10 +23,21 @@ def _background(background: Any) -> dict:
     if kind == "solid":
         return {"type": "solid", "color": background.get("color")}
     if kind == "gradient":
-        return {"type": "gradient", "colors": [s.get("color") for s in background.get("stops", [])]}
-    if kind == "image":
+        out = {"type": "gradient", "colors": [s.get("color") for s in background.get("stops", [])]}
+    elif kind == "pattern":
+        out = {
+            "type": "pattern",
+            "pattern": background.get("pattern"),
+            "colors": [background.get("color"), background.get("paper")],
+        }
+    elif kind == "image":
         return {"type": "image", "src": background.get("src")}
-    return {"type": str(kind)}
+    else:
+        return {"type": str(kind)}
+    motion = background.get("motion")
+    if isinstance(motion, dict) and motion.get("kind"):
+        out["motion"] = motion["kind"]
+    return out
 
 
 def summarize_object(obj: dict) -> dict:

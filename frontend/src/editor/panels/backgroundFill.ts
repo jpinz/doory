@@ -6,9 +6,10 @@ export function fillToBackground(fill: FillSpec): PageBackground {
   return fill.type === 'solid' ? { type: 'solid', color: fill.color } : { type: 'gradient', kind: fill.kind, angle: fill.angle, stops: fill.stops }
 }
 
-/** The fill shown for a page background; image backgrounds have no colour and read as white. */
+/** The fill shown for a page background; a pattern reads as its paper colour, an image (which has no colour) as white. */
 export function backgroundFill(bg: PageBackground): FillSpec {
   if (bg.type === 'solid') return { type: 'solid', color: bg.color }
   if (bg.type === 'gradient') return { type: 'gradient', kind: bg.kind, angle: bg.angle ?? 90, stops: bg.stops }
+  if (bg.type === 'pattern' && typeof bg.paper === 'string') return { type: 'solid', color: bg.paper }
   return { type: 'solid', color: '#ffffff' }
 }

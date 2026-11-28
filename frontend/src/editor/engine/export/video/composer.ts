@@ -15,6 +15,7 @@ import { sampleTransition } from '../../../animation/sampler'
 import { drawTransition } from '../../../animation/transitionRenderer'
 import { type ClipLook, drawWithLook } from '../../../clips/look'
 import { parseColor } from '../../colors'
+import { readPattern } from '../../objects/patterns'
 import type { LoadContext } from '../../serialization'
 import { type Rect, type Size, barColour, coversFrame, placePage } from './geometry'
 import type { FitMode } from './options'
@@ -55,11 +56,12 @@ function context(canvas: HTMLCanvasElement, readback: boolean): CanvasRenderingC
   return ctx
 }
 
-/** True when every pixel of the page is opaque: a solid or gradient background with no transparency in it. */
+/** True when every pixel of the page is opaque: a solid, gradient or pattern background with no transparency in it. */
 export function isOpaquePage(page: Pick<DocPage, 'background'>): boolean {
   const background = page.background
   if (background.type === 'solid') return parseColor(background.color)?.a === 1
   if (background.type === 'gradient') return background.stops.length > 0 && background.stops.every((s) => parseColor(s.color)?.a === 1)
+  if (background.type === 'pattern') return parseColor(readPattern(background).paper)?.a === 1
   return false
 }
 

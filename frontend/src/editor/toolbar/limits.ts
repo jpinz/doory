@@ -30,6 +30,9 @@ export const POLYGON_SIDES: Limit = { min: 3, max: 12, step: 1, decimals: 0 }
 export const STAR_POINTS: Limit = { min: 3, max: 16, step: 1, decimals: 0 }
 /** Percent of the outer radius. */
 export const STAR_INNER_RATIO: Limit = { min: 10, max: 90, step: 1, decimals: 0 }
+export const SPIRAL_TURN_COUNT: Limit = { min: 1, max: 20, step: 1, decimals: 0 }
+/** Percent: 0 spaces the coils evenly, 100 bunches them toward the centre. */
+export const SPIRAL_TIGHTNESS: Limit = { min: 0, max: 100, step: 1, decimals: 0 }
 
 /** `limit` with its maximum lowered to `max` (never below its minimum). */
 export function capLimit(limit: Limit, max: number): Limit {

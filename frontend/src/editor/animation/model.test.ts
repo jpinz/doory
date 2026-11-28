@@ -97,6 +97,13 @@ describe('page timing', () => {
     expect(timing.loops).toBe(false)
   })
 
+  it('loops a page whose background moves, and counts it as motion', () => {
+    const background = { type: 'pattern', pattern: 'dots', color: '#000000', paper: '#ffffff', size: 20, motion: { kind: 'drift', periodMs: 4000 } } as const
+    expect(pageTiming(page([obj('a')], { background })).loops).toBe(true)
+    expect(pageHasMotion(page([], { background }))).toBe(true)
+    expect(pageTiming(page([], { background: { ...background, motion: undefined } })).loops).toBe(false)
+  })
+
   it('leaves a looping emphasis out of the end and reports it', () => {
     const timing = pageTiming(page([obj('a', { ...enter(0, 500), emphasis: { preset: 'float', durationMs: 2400, delayMs: 500, easing: 'linear', loop: true } })]))
     expect(timing.endMs).toBe(500)
