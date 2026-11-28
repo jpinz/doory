@@ -1,4 +1,5 @@
 import { ChevronDown, Copy, Download, History, Menu as MenuIcon, Presentation, Share2, SlidersHorizontal, Users } from 'lucide-react'
+import { DebugBranchBadge } from '@/app/DebugBranchBadge'
 import { useContrast } from '@/lib/contrast'
 import { useSizePresets } from '@/lib/sizePresets'
 import { getPageSize } from './engine/pageSizes'
@@ -346,6 +347,7 @@ export function TopBar({ start, end, onTitle, onPresent }: TopBarProps) {
     <header ref={barRef} className={styles.bar} data-testid="ed-topbar" data-narrow={narrow || undefined} data-present={showPresent || undefined}>
       <div className={styles.left}>
         {start}
+        <DebugBranchBadge />
         {narrow ? (
           <MenuButton label={t.topbar.menu} items={combinedItems} testId="ed-more" icon={<MenuIcon size={18} aria-hidden="true" />} onOpen={() => preloadDialog('download')} />
         ) : (

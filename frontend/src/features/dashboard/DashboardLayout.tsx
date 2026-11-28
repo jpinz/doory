@@ -3,6 +3,7 @@ import { Folder, FolderClosed, Home, LayoutTemplate, Palette, Search, Settings, 
 import { Suspense, useState, type FormEvent } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { PageLoader } from '@/app/PageLoader'
+import { DebugBranchBadge } from '@/app/DebugBranchBadge'
 import { AccountMenu } from '@/features/auth/AccountMenu'
 import { UsageMeter } from '@/features/uploads/UsageMeter'
 import { useFolders } from '@/lib/api/hooks'
@@ -121,6 +122,7 @@ export default function DashboardLayout() {
           <Link to="/dashboard" className={styles.mobileLogo} aria-label={msg("Doory dashboard")}>
             <Logo variant="mark" height={30} />
           </Link>
+          <DebugBranchBadge />
           <DashboardSearch key={searchValue} initial={searchValue} />
           <div className={styles.actions}>
             <CreateMenu />
