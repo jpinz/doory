@@ -12,7 +12,7 @@ import { ColorButton } from '../../ui/ColorButton'
 import { DEFAULT_COLORS, GRADIENT_PRESETS } from '../../ui/swatches'
 import { EffectsPanel } from '../effects'
 import { Accordion, LimitedNumber, OpacityTool } from '../controls'
-import { CORNER_RADIUS, LINE_WIDTH, POLYGON_SIDES, STAR_INNER_RATIO, STAR_POINTS, STROKE_WIDTH, capLimit } from '../limits'
+import { CORNER_RADIUS, LINE_WIDTH, POLYGON_SIDES, SPIRAL_TIGHTNESS, SPIRAL_TURN_COUNT, STAR_INNER_RATIO, STAR_POINTS, STROKE_WIDTH, capLimit } from '../limits'
 import { elementColors } from '../kinds'
 import { PopoverTool, ToolButton } from '../parts'
 import { FrameTool } from './image'
@@ -86,6 +86,12 @@ function ShapeMore({ stroke }: { stroke: boolean }) {
           <Accordion title={t.ctx.moreSectionShape} testId="more-star">
             <LimitedNumber label={t.toolbar.points} value={Number(o.starPoints ?? 5)} limit={STAR_POINTS} testId="ed-star-points" onChange={(v) => editor.style.setStarShape({ points: v })} />
             <LimitedNumber label={`${t.toolbar.innerRadius} (%)`} value={Math.round(Number(o.innerRatio ?? 0.45) * 100)} limit={STAR_INNER_RATIO} testId="ed-star-inner" onChange={(v) => editor.style.setStarShape({ innerRatio: v / 100 })} />
+          </Accordion>
+        ) : null}
+        {kind === 'spiral' ? (
+          <Accordion title={t.ctx.moreSectionShape} testId="more-spiral">
+            <LimitedNumber label={t.toolbar.turns} value={Number(o.spiralTurns ?? 4)} limit={SPIRAL_TURN_COUNT} testId="ed-spiral-turns" onChange={(v) => editor.style.setSpiral({ turns: v })} />
+            <LimitedNumber label={`${t.toolbar.tightness} (%)`} value={Math.round(Number(o.spiralTightness ?? 0) * 100)} limit={SPIRAL_TIGHTNESS} testId="ed-spiral-tightness" onChange={(v) => editor.style.setSpiral({ tightness: v / 100 })} />
           </Accordion>
         ) : null}
         <Accordion title={t.ctx.moreSectionEffects} testId="more-effects">

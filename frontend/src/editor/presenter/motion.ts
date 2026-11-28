@@ -6,7 +6,8 @@
  * Page time. A page stays up for its time (`DocPage.durationSec`, or the default stretched to its clips when the design
  * has none) counted from the moment it has built up, so its auto-advance time is its transition plus the end of its last enter animation plus
  * that time; `motionDurations` adds the first two to the times `timing.ts` resolves. The state machine, the page
- * clock and the presenter view all see one number and need no idea of animation.
+ * clock and the presenter view all see one number and need no idea of animation. Reduced motion also stills a moving
+ * background.
  */
 import type { DocPage, DoryDocument, PageTransition } from '@/types/document'
 import type { FrameRenderer } from '../animation/frameRenderer'
@@ -16,6 +17,7 @@ import { playableTransition } from '../animation/sampler'
 import { transitionPresets } from '../animation/presets'
 import type { EditorEngine } from '../engine/editor'
 import { getPageSize } from '../engine/pageSizes'
+import { backgroundMotion, withMotion } from '../engine/objects/backgroundMotion'
 import { DURATION_MAX_SEC } from './timing'
 import { elementSources } from '../clips/elementSource'
 import { wheelDocuments } from '../dynamic/interactive/wheel/model'
@@ -39,7 +41,8 @@ export interface MotionPlan {
   moves: boolean
 }
 
-function withoutAnimation(page: DocPage): DocPage {
+function withoutAnimation(original: DocPage): DocPage {
+  const page = backgroundMotion(original.background) ? { ...original, background: withMotion(original.background, null) } : original
   if (!pageHasAnimation(page)) return page
   const objects = page.objects.map((o) => {
     if (o.animation === undefined) return o
@@ -60,7 +63,7 @@ export function planMotion(doc: Pick<DoryDocument, 'pages'>, reduced: boolean): 
   return {
     pages,
     reduced,
-    moves: hasPresentationLinks || pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0 || dieDocuments(p.page.objects).length > 0),
+    moves: hasPresentationLinks || pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || p.timing.loops || wheelDocuments(p.page.objects).length > 0 || dieDocuments(p.page.objects).length > 0),
   }
 }
 

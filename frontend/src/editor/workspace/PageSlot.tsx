@@ -43,6 +43,7 @@ const headerStyle = (width: number, height: number): CSSProperties => {
 function backgroundCss(page: DocPage): string | undefined {
   const bg = page.background
   if (bg.type === 'image') return undefined
+  if (bg.type === 'pattern') return bg.paper
   const fill = backgroundToFill(bg)
   return fill.type === 'gradient' ? gradientCss(fill) : fill.color
 }

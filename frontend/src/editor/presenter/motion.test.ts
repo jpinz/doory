@@ -53,6 +53,14 @@ describe('planMotion', () => {
     expect(plan.moves).toBe(true)
   })
 
+  it('plays a moving background, and holds it still under reduced motion', () => {
+    const moving: DocPage = { ...page('a'), background: { type: 'gradient', kind: 'linear', angle: 0, stops: [], motion: { kind: 'shift', periodMs: 4000 } } }
+    expect(planMotion({ pages: [moving] }, false).moves).toBe(true)
+    const reduced = planMotion({ pages: [moving] }, true)
+    expect(reduced.pages[0].page.background).not.toHaveProperty('motion')
+    expect(reduced.pages[0].timing.loops).toBe(false)
+  })
+
   it('leaves the document alone', () => {
     const doc = deck()
     const before = JSON.stringify(doc)
