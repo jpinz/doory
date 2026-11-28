@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Keyboard, Maximize, Minimize, MonitorOff, MonitorPlay, MousePointer2, Pause, Play, Repeat, RotateCcw, StickyNote, Timer, Volume2, VolumeX, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Keyboard, Maximize, Minimize, MonitorOff, MonitorPlay, MousePointer2, PanelBottom, Pause, Play, Repeat, RotateCcw, StickyNote, Timer, Volume2, VolumeX, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { SlideshowAction, SlideshowState } from '../presenter/machine'
 import type { ShowSound } from '../presenter/useShowAudio'
@@ -41,6 +41,7 @@ interface PresenterControlsProps {
   /** What the page countdown reads: "0:03 left", "Waits for you", or nothing while auto-advance is off. */
   countdown: string | null
   notesOpen: boolean
+  timelineVisible: boolean
   laser: boolean
   fullscreen: boolean
   canFullscreen: boolean
@@ -49,6 +50,7 @@ interface PresenterControlsProps {
   sound: ShowSound | null
   dispatch: (action: SlideshowAction) => void
   onNotes: () => void
+  onTimeline: () => void
   onLaser: () => void
   onFullscreen: () => void
   onView: () => void
@@ -97,6 +99,9 @@ export function PresenterControls(p: PresenterControlsProps) {
         </Control>
       </Group>
       <Group>
+        <Control label={t.presenter.progressBars} pressed={p.timelineVisible} testId="present-progress-toggle" onClick={p.onTimeline}>
+          <PanelBottom size={18} aria-hidden="true" />
+        </Control>
         <Control label={t.presenter.laser} phoneHidden shortcut="L" pressed={p.laser} testId="present-laser" onClick={p.onLaser}>
           <MousePointer2 size={18} aria-hidden="true" />
         </Control>

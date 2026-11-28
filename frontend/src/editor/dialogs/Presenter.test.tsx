@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBlankDocument } from '@/lib/document'
 import type { DoryDocument } from '@/types/document'
@@ -44,7 +44,7 @@ async function setup({ mutate, props }: Options = {}) {
   mutate?.(doc)
   const engine = new EditorEngine({ adapter: createMemoryAdapter().adapter, document: doc, meta: { id: 'd', title: 'Deck', mode: 'guest' }, ephemeral: true })
   const close = vi.spyOn(engine, 'closeDialog')
-  let view: ReturnType<typeof render> | null = null
+  let view!: ReturnType<typeof render>
   // The first page renders asynchronously: let it settle inside act so the test starts from a steady stage.
   await act(async () => {
     view = render(
@@ -71,6 +71,7 @@ describe('Presenter', () => {
     Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 720 })
     vi.stubGlobal('BroadcastChannel', class { postMessage(): void {} addEventListener(): void {} removeEventListener(): void {} close(): void {} })
     sessionStorage.clear()
+    localStorage.clear()
   })
   afterEach(() => {
     engine?.dispose()
@@ -230,6 +231,48 @@ describe('Presenter', () => {
     })
     expect(counter()).toBe('1 / 3')
     expect(screen.queryByTestId('present-end')).toBeNull()
+  })
+
+  it('toggles the audience progress bars, remembers the preference, and keeps slide navigation working', async () => {
+    const ctx = await setup()
+    engine = ctx.engine
+    const toggle = screen.getByRole('button', { name: t.presenter.progressBars })
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('present-timeline')).toBeInTheDocument()
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('present-timeline')).toBeNull()
+    await key('ArrowRight')
+    expect(counter()).toBe('2 / 3')
+    ctx.view.unmount()
+    ctx.engine.dispose()
+
+    const again = await setup()
+    engine = again.engine
+    expect(screen.getByRole('button', { name: t.presenter.progressBars })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('present-timeline')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: t.presenter.progressBars }))
+    const timeline = within(screen.getByTestId('present-timeline'))
+    fireEvent.click(timeline.getByRole('button', { name: t.presenter.goToPage(3) }))
+    expect(counter()).toBe('3 / 3')
+  })
+
+  it('continues timed progress while the bars are hidden and restores the current slide when shown', async () => {
+    vi.useFakeTimers()
+    const ctx = await setup({ mutate: (d) => d.pages.forEach((p) => (p.durationSec = 2)) })
+    engine = ctx.engine
+    fireEvent.click(screen.getByTestId('present-progress-toggle'))
+    await act(async () => {
+      vi.advanceTimersByTime(2500)
+    })
+    expect(counter()).toBe('2 / 3')
+    expect(screen.queryByTestId('present-timeline')).toBeNull()
+    fireEvent.click(screen.getByTestId('present-progress-toggle'))
+    const timeline = within(screen.getByTestId('present-timeline'))
+    expect(timeline.getByRole('button', { name: t.presenter.goToPage(1) })).toHaveAttribute('data-state', 'done')
+    const current = timeline.getByRole('button', { name: t.presenter.goToPage(2) })
+    expect(current).toHaveAttribute('aria-current', 'step')
+    expect(current.querySelector('span')).toHaveStyle({ transform: 'scaleX(0.25)' })
   })
 
   it('a design with a time on some pages makes the others wait; one with none can be played at 5 s', async () => {

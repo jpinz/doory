@@ -5,6 +5,9 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import { getDoc, moreMenu, openEditor } from './helpers'
 
+// Hidden scrollbars mask sizing feedback that happens in normal browser windows.
+test.use({ launchOptions: { executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium', ignoreDefaultArgs: ['--hide-scrollbars'] } })
+
 const overlay = (page: Page) => page.getByTestId('present-overlay')
 const counter = (page: Page) => page.getByTestId('present-counter')
 
@@ -37,7 +40,182 @@ async function closeAll(context: BrowserContext): Promise<void> {
   await context.close()
 }
 
+test.describe('[layout] presenter preview stability', () => {
+  test('keeps both previews stable at default zoom and after resizing and zooming with visible scrollbars', async ({ page }) => {
+    await openDeck(page)
+    await page.getByTestId('ed-share').click()
+    const [view] = await Promise.all([
+      page.waitForEvent('popup'),
+      page.getByRole('menuitem', { name: 'Present with notes' }).click(),
+    ])
+    await expect(view.getByTestId('view-root')).toBeVisible({ timeout: 15_000 })
+    const expectStable = async (which: 'current' | 'next'): Promise<void> => {
+      await pictureLoaded(view, `view-${which}`)
+      const sizes = await view.getByTestId(`view-${which}`).evaluate(async (el) => {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        const samples = new Set<string>()
+        const until = performance.now() + 500
+        while (performance.now() < until) {
+          await new Promise(requestAnimationFrame)
+          const picture = el.querySelector('[data-testid$="-picture"]')?.getBoundingClientRect()
+          if (!picture) throw new Error('no preview picture')
+          samples.add([el.clientWidth, el.clientHeight, picture.x, picture.y, picture.width, picture.height].join('x'))
+        }
+        return [...samples]
+      })
+      expect(sizes, `${which} preview must not oscillate while idle`).toHaveLength(1)
+    }
+    await expectStable('current')
+    await expectStable('next')
+    await page.getByTestId('present-timeline').getByRole('button', { name: 'Go to page 2' }).click()
+    await expect(view.getByTestId('view-counter')).toHaveText('Page 2 of 3')
+    for (const [which, aspect] of [['current', 1], ['next', 1080 / 1920]] as const) {
+      const panel = view.getByTestId(`view-panel-${which}`)
+      for (const shape of [{ width: 320, height: 400 / aspect }, { width: 480.5, height: 270.5 }]) {
+        await panel.getByRole('button', { name: 'Zoom level', exact: true }).click()
+        await panel.evaluate((el, { which, width, height }) => {
+          const box = el.querySelector(`[data-testid="view-${which}"]`)
+          if (!box) throw new Error('no preview viewport')
+          const outer = el.getBoundingClientRect()
+          const inner = box.getBoundingClientRect()
+          el.style.width = `${width + outer.width - inner.width}px`
+          el.style.height = `${height + outer.height - inner.height}px`
+        }, { which, ...shape })
+        await expectStable(which)
+        const holder = await view.getByTestId(`view-${which}`).boundingBox()
+        const fitted = await view.getByTestId(`view-${which}-picture`).boundingBox()
+        if (!holder || !fitted) throw new Error('no fitted preview')
+        expect(fitted.width / fitted.height).toBeCloseTo(aspect, 2)
+        expect(fitted.width).toBeLessThanOrEqual(holder.width + 1)
+        expect(fitted.height).toBeLessThanOrEqual(holder.height + 1)
+        await panel.getByRole('button', { name: 'Zoom in', exact: true }).click()
+        await expectStable(which)
+        const scroller = view.getByTestId(`view-${which}-scroll`)
+        const scrollable = await scroller.evaluate((el) => {
+          el.scrollLeft = el.scrollWidth
+          el.scrollTop = el.scrollHeight
+          return el.scrollLeft > 0 || el.scrollTop > 0
+        })
+        expect(scrollable).toBe(true)
+      }
+    }
+  })
+})
+
 test.describe('[layout] presenter view', () => {
+  test('configures dashboard panels and restores them after toggling the flow map or reloading', async ({ page, context }) => {
+    await openDeck(page)
+    await page.getByTestId('ed-share').click()
+    const [view] = await Promise.all([
+      page.waitForEvent('popup'),
+      page.getByRole('menuitem', { name: 'Present with notes' }).click(),
+    ])
+    await expect(overlay(page)).toBeVisible()
+    await expect(view.getByTestId('view-root')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('present-timeline')).toBeVisible()
+    await page.getByTestId('present-progress-toggle').click()
+    await expect(page.getByTestId('present-timeline')).toHaveCount(0)
+    await expect(view.getByTestId('view-dashboard')).toBeVisible()
+    await page.getByTestId('present-progress-toggle').click()
+    await page.getByTestId('present-timeline').getByRole('button', { name: 'Go to page 2' }).click()
+    await expect(view.getByTestId('view-counter')).toHaveText('Page 2 of 3')
+    await page.getByTestId('present-timeline').getByRole('button', { name: 'Go to page 1' }).click()
+    await expect(view.getByTestId('view-counter')).toHaveText('Page 1 of 3')
+    const expectResizeClearance = async (): Promise<void> => {
+      for (const section of await view.locator('section[data-testid^="view-panel-"]').all()) {
+        const content = await section.locator(':scope > div').boundingBox()
+        if (!content) throw new Error('no panel content')
+        for (const zone of await section.locator('[data-edge]').all()) {
+          const handle = await zone.boundingBox()
+          if (!handle) throw new Error('no resize handle')
+          const overlaps = Math.min(content.x + content.width, handle.x + handle.width) > Math.max(content.x, handle.x)
+            && Math.min(content.y + content.height, handle.y + handle.height) > Math.max(content.y, handle.y)
+          expect(overlaps).toBe(false)
+        }
+      }
+    }
+    await expectResizeClearance()
+    const panel = view.getByTestId('view-panel-next')
+    const move = panel.getByRole('button', { name: 'Move panel (drag or use arrow keys)' })
+    const start = await panel.boundingBox()
+    const grip = await move.boundingBox()
+    if (!start || !grip) throw new Error('no panel box')
+    await view.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+    await view.mouse.down()
+    await view.mouse.move(grip.x + grip.width / 2 - 120, grip.y + grip.height / 2 + 80, { steps: 8 })
+    await view.mouse.up()
+    const moved = await panel.boundingBox()
+    if (!moved) throw new Error('no moved panel box')
+    expect(moved.x).toBeCloseTo(start.x - 120, 0)
+    expect(moved.y).toBeCloseTo(start.y + 80, 0)
+    await expect(counter(page)).toHaveText('1 / 3')
+
+    const resize = await panel.getByTestId('view-resize-se').boundingBox()
+    if (!resize) throw new Error('no resize handle')
+    await view.mouse.move(resize.x + resize.width / 2, resize.y + resize.height / 2)
+    await view.mouse.down()
+    await expect(panel.getByTestId('view-resize-se')).toHaveCSS('box-shadow', 'none')
+    await expect(panel.getByTestId('view-resize-se')).toHaveCSS('outline-style', 'none')
+    await view.mouse.move(resize.x + resize.width / 2 - 80, resize.y + resize.height / 2 + 60, { steps: 8 })
+    await view.mouse.up()
+    const resized = await panel.boundingBox()
+    if (!resized) throw new Error('no resized panel box')
+    expect(resized.width).toBeCloseTo(moved.width - 80, 0)
+    expect(resized.height).toBeCloseTo(moved.height + 60, 0)
+    const corner = await panel.getByTestId('view-resize-nw').boundingBox()
+    if (!corner) throw new Error('no top-left resize corner')
+    await view.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2)
+    await view.mouse.down()
+    await view.mouse.move(corner.x + corner.width / 2 + 40, corner.y + corner.height / 2 + 30, { steps: 8 })
+    await view.mouse.up()
+    const fromCorner = await panel.boundingBox()
+    if (!fromCorner) throw new Error('no corner-resized panel box')
+    expect(fromCorner.x).toBeCloseTo(resized.x + 40, 0)
+    expect(fromCorner.y).toBeCloseTo(resized.y + 30, 0)
+    expect(fromCorner.width).toBeCloseTo(resized.width - 40, 0)
+    expect(fromCorner.height).toBeCloseTo(resized.height - 30, 0)
+    const side = await panel.getByTestId('view-resize-e').boundingBox()
+    if (!side) throw new Error('no right resize edge')
+    await view.mouse.move(side.x + side.width / 2, side.y + side.height / 2)
+    await view.mouse.down()
+    await view.mouse.move(side.x + side.width / 2 + 20, side.y + side.height / 2, { steps: 8 })
+    await view.mouse.up()
+    const fromSide = await panel.boundingBox()
+    if (!fromSide) throw new Error('no edge-resized panel box')
+    expect(fromSide.x).toBeCloseTo(fromCorner.x, 0)
+    expect(fromSide.width).toBeCloseTo(fromCorner.width + 20, 0)
+    expect(fromSide.height).toBeCloseTo(fromCorner.height, 0)
+    const geometry = await panel.getAttribute('style')
+
+    await panel.getByRole('combobox', { name: 'Panel component' }).selectOption('flow')
+    await expect(panel.getByTestId('map-root')).toBeVisible()
+    await expectResizeClearance()
+    await expect(view.getByTestId('view-notes')).toBeVisible()
+    await panel.getByRole('button', { name: 'Zoom in' }).click()
+    await expect(panel.getByTestId('map-zoom')).toHaveText('125%')
+    await view.getByTestId('view-flow-map').click()
+    await expect(view.getByTestId('view-map')).toBeVisible()
+    await expect(view.getByTestId('view-dashboard')).toHaveCount(0)
+    await view.getByTestId('view-flow-map').click()
+    await expect(panel).toHaveAttribute('style', geometry ?? '')
+    await expect(panel.getByTestId('map-zoom')).toHaveText('125%')
+
+    await view.reload()
+    await expect(panel.getByTestId('map-root')).toBeVisible({ timeout: 15_000 })
+    await expect(panel).toHaveAttribute('style', geometry ?? '')
+    await expect(panel.getByTestId('map-zoom')).toHaveText('125%')
+    await panel.getByTestId('map-card-1').click()
+    await expect(counter(page)).toHaveText('2 / 3')
+    await panel.getByTestId('view-resize-se').focus()
+    await view.keyboard.press('Tab')
+    const keyboardEdge = panel.getByTestId('view-resize-s')
+    await expect(keyboardEdge).toBeFocused()
+    await expect(keyboardEdge).toHaveCSS('box-shadow', 'none')
+    await expect(keyboardEdge).toHaveCSS('outline-style', 'none')
+    await expect(keyboardEdge).toHaveCSS('border-bottom-style', 'solid')
+    await closeAll(context)
+  })
+
   test('shows the current page, the next page and the notes, in step with the audience window', async ({ page, context }) => {
     await openDeck(page)
     const view = await startWithView(page)

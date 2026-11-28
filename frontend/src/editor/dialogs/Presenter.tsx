@@ -40,6 +40,15 @@ const TAP_MAX_PX = 12
 /** A tap on the left part of the stage goes back, anywhere else forward. */
 const BACK_ZONE = 0.3
 const MESSAGE_MS = 7000
+const TIMELINE_KEY = 'doory.presenter.timelineVisible'
+
+function storedTimelineVisible(): boolean {
+  try {
+    return localStorage.getItem(TIMELINE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
 
 interface Message {
   text: string
@@ -93,6 +102,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   // "Present with notes" asked for a second window; if the browser did not give one, say so and show the notes here.
   const [noWindow] = useState(() => wantsNotes && !hasStashedView(session))
   const [notesOpen, setNotesOpen] = useState(noWindow)
+  const [timelineVisible, setTimelineVisible] = useState(storedTimelineVisible)
   const [laser, setLaser] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
@@ -102,6 +112,14 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   // Sound the browser held back, or a file that did not load, is reported in the same place as the other notices.
   const sound = useShowAudio(doc, plan, state, say)
   const idle = useIdle(IDLE_MS)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TIMELINE_KEY, String(timelineVisible))
+    } catch {
+      /* The preference still works for this presentation when storage is unavailable. */
+    }
+  }, [timelineVisible])
 
   const close = useCallback(() => editor.closeDialog(), [editor])
   const spinWheel = useCallback((pageId: string, wheelId: string) => motionStage.current?.spin(pageId, wheelId) ?? false, [])
@@ -371,12 +389,13 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
         ) : null}
       </div>
 
-      <PresenterTimeline config={config} state={state} dispatch={dispatch} />
+      {timelineVisible ? <PresenterTimeline config={config} state={state} dispatch={dispatch} /> : null}
       <PresenterControls
         state={state}
         count={doc.pages.length}
         countdown={countdown}
         notesOpen={notesOpen}
+        timelineVisible={timelineVisible}
         laser={laser}
         fullscreen={fullscreen}
         canFullscreen={canFullscreen}
@@ -384,6 +403,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
         sound={sound.available ? sound : null}
         dispatch={dispatch}
         onNotes={() => setNotesOpen((open) => !open)}
+        onTimeline={() => setTimelineVisible((visible) => !visible)}
         onLaser={() => setLaser((on) => !on)}
         onFullscreen={toggleFullscreen}
         onView={openView}
