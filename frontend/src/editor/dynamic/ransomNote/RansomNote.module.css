@@ -1,0 +1,151 @@
+.editor {
+  display: grid;
+  gap: 16px;
+  max-height: min(78vh, 760px);
+  overflow: auto;
+  padding: 2px;
+  color: var(--ed-text);
+  font: 400 13px / 1.4 var(--font-sans);
+}
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.section h3 {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--ed-border);
+  font-size: 13px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+.field textarea {
+  resize: vertical;
+}
+.field input[type='range'] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--ed-accent);
+}
+.label {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+.label > :last-child {
+  color: var(--ed-text-dim);
+  font-weight: 400;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.hint {
+  margin: 0;
+  color: var(--ed-text-dim);
+}
+.options {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.options legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 600;
+}
+.segmented {
+  display: flex;
+  border: 1px solid var(--ed-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.segmented label {
+  position: relative;
+  flex: 1;
+  padding: 8px 2px;
+  text-align: center;
+  cursor: pointer;
+}
+.segmented input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.swatches,
+.fonts {
+  display: flex;
+  gap: 6px;
+}
+.swatch {
+  width: 100%;
+  min-height: 34px;
+  border: 2px solid var(--ed-border);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.swatch.selected {
+  outline: 2px solid var(--ed-text);
+  outline-offset: 1px;
+}
+.fonts button {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 2px;
+  border: 1px solid var(--ed-border);
+  border-radius: 7px;
+  background: var(--ed-surface);
+  color: var(--ed-text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.fonts button > span {
+  font-size: 24px;
+}
+.segmented .selected,
+.fonts .selected {
+  background: var(--ed-text);
+  color: var(--ed-surface);
+}
+.segmented label:focus-within,
+.swatch:focus-visible,
+.fonts button:focus-visible {
+  outline: 2px solid var(--ed-accent);
+  outline-offset: -2px;
+}
+.swatch:disabled,
+.fonts button:disabled {
+  cursor: default;
+}
+.preview {
+  width: 100%;
+  height: 210px;
+  padding: 12px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: #d9dde0;
+  object-fit: contain;
+}
+@media (max-width: 760px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}

@@ -37,6 +37,40 @@ beforeEach(async () => {
 })
 
 describe('/create', () => {
+  it('recreates a linked ransom note in a fresh local design', async () => {
+    const note = { text: 'Find the key', seed: 42, chaos: 75, edge: 'torn', colors: ['red', 'white'], fonts: ['serif'], letterCase: 'typed' }
+    const { router } = renderApp(`/create#ransom-note=${encodeURIComponent(JSON.stringify(note))}`)
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/local\//))
+    const [summary] = await listLocalDesigns()
+    const stored = await getLocalDesign(summary.id)
+    expect(stored?.document.pages[0].objects).toEqual([expect.objectContaining({ type: 'doryransomnote', ransomNote: note })])
+  })
+
+  it('stores linked note settings in a new account design for signed-in users', async () => {
+    const note = { text: 'Find the key', seed: 42 }
+    const bodies: Record<string, unknown>[] = []
+    const { router } = renderApp(`/create#ransom-note=${encodeURIComponent(JSON.stringify(note))}`, {
+      user: makeUser(),
+      handlers: [
+        http.post('*/api/v1/designs/', async ({ request }) => {
+          bodies.push(await request.json() as Record<string, unknown>)
+          return json(designDetail('note-1'), 201)
+        }),
+        http.get('*/api/v1/designs/note-1/', () => json(designDetail('note-1'))),
+      ],
+    })
+    await waitFor(() => expect(router.state.location.pathname).toBe('/design/note-1'))
+    expect(bodies[0]).toMatchObject({ document: { pages: [{ objects: [{ ransomNote: note }] }] } })
+    expect(await listLocalDesigns()).toEqual([])
+  })
+
+  it('rejects a malformed note link without creating a blank design', async () => {
+    const { router } = renderApp('/create#ransom-note=%broken')
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/create')
+    expect(await listLocalDesigns()).toEqual([])
+  })
+
   it('guests get a local design from a preset and land in /local/:id', async () => {
     const { router } = renderApp('/create?preset=presentation-4-3')
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/local\/[0-9a-f-]{36}$/))
