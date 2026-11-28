@@ -5,7 +5,8 @@ import { t } from '../../strings'
 import { type Envelope, openLink, type PagePreview, type PresenterLink } from '../channel'
 import { initialState } from '../machine'
 import { createChannelHub } from '../testing'
-import { FlowMapView } from './FlowMapView'
+import { FlowMap, MAP_FRAMES } from './FlowMapView'
+import { useShow } from './useShow'
 
 const SESSION = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'
 const pages: PagePreview[] = [
@@ -20,6 +21,10 @@ function pointer(target: HTMLElement, type: string, pointerId: number, x: number
   fireEvent(target, event)
 }
 
+function Harness({ create }: { create: ReturnType<typeof createChannelHub>['create'] }) {
+  return <FlowMap link={useShow(SESSION, create, MAP_FRAMES)} />
+}
+
 function connect() {
   const hub = createChannelHub()
   const received: Envelope[] = []
@@ -29,10 +34,10 @@ function connect() {
   return { hub, show, received, init: () => show.send({ kind: 'init', title: 'Jeopardy', theme: null, pages, state }) }
 }
 
-describe('FlowMapView', () => {
+describe('FlowMap', () => {
   it('draws the deck in its section frames, follows the slide on screen and shows a clicked slide', async () => {
     const c = connect()
-    const { unmount } = render(<FlowMapView session={SESSION} createChannel={c.hub.create} />)
+    const { unmount } = render(<Harness create={c.hub.create} />)
     await waitFor(() => expect(c.received.some((m) => m.kind === 'hello' && m.viewId)).toBe(true))
     act(() => c.init())
     expect(await screen.findByTestId('map-root')).toBeInTheDocument()
@@ -55,7 +60,7 @@ describe('FlowMapView', () => {
 
   it('zooms with the wheel and the buttons, and pans when dragging empty space', async () => {
     const c = connect()
-    render(<FlowMapView session={SESSION} createChannel={c.hub.create} />)
+    render(<Harness create={c.hub.create} />)
     await waitFor(() => expect(c.received.some((m) => m.kind === 'hello')).toBe(true))
     act(() => c.init())
     const scroll = await screen.findByTestId('map-scroll')

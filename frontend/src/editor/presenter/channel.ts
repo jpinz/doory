@@ -4,8 +4,8 @@
  * browser. The audience window owns the show (the state machine, the clock, the rendering); the presenter view only
  * displays what it is sent and sends commands back.
  *
- *   view  -> show   hello                         "I opened, send me everything" (with the window's id: the
- *                                                 presenter view and its flow map are two views of one show)
+ *   view  -> show   hello                         "I opened, send me everything" (with the window's id: a show
+ *                                                 can have more than one view window)
  *   show  -> view   init                          title, theme, every page's name, notes, time and size, the state
  *   show  -> view   state                         after every change and once a second (the view runs its own clock)
  *   view  -> show   command                       a navigation / playback command, or {goto}
@@ -333,12 +333,5 @@ export function openLink(session: string, role: Role, create: (name: string) => 
 export function presenterViewUrl(session: string, base: string = import.meta.env.BASE_URL, origin: string = location.href): string {
   const url = new URL(`${base}presenter-view.html`, origin)
   url.searchParams.set('session', session)
-  return url.toString()
-}
-
-/** The same page showing the flow map of the session's deck instead of the presenter console. */
-export function flowMapUrl(session: string, base?: string, origin?: string): string {
-  const url = new URL(presenterViewUrl(session, base, origin))
-  url.searchParams.set('panel', 'flow')
   return url.toString()
 }
