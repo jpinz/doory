@@ -47,9 +47,12 @@ function Thumb({ page, frames, request }: { page: PagePreview; frames: Show['fra
 interface FlowMapProps {
   /** The presenter view's link to the show; give it room for `MAP_FRAMES` pictures while the map is shown. */
   link: Show
+  embedded?: boolean
+  initialZoom?: number
+  onZoomChange?: (zoom: number) => void
 }
 
-export function FlowMap({ link }: FlowMapProps) {
+export function FlowMap({ link, embedded = false, initialZoom = 1, onZoomChange }: FlowMapProps) {
   const { phase, show, frames, send, request } = link
   const cards = useRef(new Map<number, HTMLButtonElement>())
   const config = useMemo(() => (show ? configOf(show.pages) : null), [show])
@@ -61,7 +64,7 @@ export function FlowMap({ link }: FlowMapProps) {
     scrollRef.current = el
     setScroller(el)
   }, [])
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState(() => clampZoom(initialZoom))
   const zoomRef = useRef(zoom)
   // The board point to keep under the pointer (or the view's middle) once a new zoom has been laid out.
   const anchor = useRef<{ board: Position; view: Position } | null>(null)
@@ -76,6 +79,7 @@ export function FlowMap({ link }: FlowMapProps) {
     anchor.current = { board: { x: (el.scrollLeft + at.x) / zoomRef.current, y: (el.scrollTop + at.y) / zoomRef.current }, view: at }
     zoomRef.current = target
     setZoom(target)
+    onZoomChange?.(target)
   }
   const zoomToRef = useRef(zoomTo)
   useEffect(() => {
@@ -163,14 +167,14 @@ export function FlowMap({ link }: FlowMapProps) {
   )
 
   return (
-    <div className={styles.root} data-testid="map-root">
+    <div className={`${styles.root} ${embedded ? styles.embedded : ''}`} data-testid="map-root">
       <header className={styles.header}>
-        <span className={styles.hint}>{t.presenterView.flowMapHint}</span>
-        <span className={styles.legend}>
+        {!embedded ? <span className={styles.hint}>{t.presenterView.flowMapHint}</span> : null}
+        {!embedded ? <span className={styles.legend}>
           <span className={styles.nextKey}>{t.flowBoard.next}</span>
           <span className={styles.orderKey}>{t.flowBoard.slideOrder}</span>
           <span className={styles.branchKey}>{t.flowBoard.objectLink}</span>
-        </span>
+        </span> : null}
         <span className={styles.zoom} role="group" aria-label={t.workspace.zoomControls}>
           <button type="button" aria-label={t.workspace.zoomOut} disabled={zoom <= ZOOM_MIN} onClick={() => zoomTo(zoom / ZOOM_STEP)}><Minus size={14} aria-hidden="true" /></button>
           <button type="button" className={styles.zoomLevel} aria-label={`${t.workspace.zoomLevel} ${Math.round(zoom * 100)}%`} data-testid="map-zoom" onClick={() => zoomTo(1)}>{Math.round(zoom * 100)}%</button>
@@ -189,12 +193,16 @@ export function FlowMap({ link }: FlowMapProps) {
         onPointerCancel={endPan}
         onKeyDown={(event) => {
           if (event.ctrlKey || event.metaKey || event.altKey) return
+          if (embedded && event.key.startsWith('Arrow')) {
+            event.stopPropagation()
+            return
+          }
           if (event.key === '+' || event.key === '=') zoomTo(zoom * ZOOM_STEP)
           else if (event.key === '-') zoomTo(zoom / ZOOM_STEP)
           else if (event.key === '0') zoomTo(1)
           else return
-          // Handled here: the presenter view's own shortcuts leave it alone.
           event.preventDefault()
+          event.stopPropagation()
         }}
       >
         <div className={styles.space} style={{ width: width * zoom, height: height * zoom }}>

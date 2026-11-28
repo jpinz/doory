@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { t } from '../../strings'
@@ -30,6 +30,12 @@ function audience() {
   show.subscribe((m) => received.push(m))
   const init = (state: SlideshowState = stateAt()): void => show.send({ kind: 'init', title: 'Launch deck', theme: 'dark', pages, state })
   return { hub, show, received, init, commands: () => received.filter((m) => m.kind === 'command').map((m) => (m as Extract<Envelope, { kind: 'command' }>).command) }
+}
+
+function pointer(target: HTMLElement, type: string, x: number, y: number): void {
+  const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })
+  Object.defineProperty(event, 'pointerId', { value: 1 })
+  fireEvent(target, event)
 }
 
 describe('PresenterView', () => {
@@ -316,5 +322,148 @@ describe('PresenterView', () => {
     expect(screen.queryByTestId('map-root')).toBeNull()
     expect(screen.getByTestId('view-size')).toHaveTextContent(size ?? '')
     open.mockRestore()
+  })
+
+  it('replaces panels with the flow map using the existing connection, and keeps its zoom separate from notes', async () => {
+    const a = audience()
+    const { unmount } = render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    const next = within(await screen.findByTestId('view-panel-next'))
+    fireEvent.change(next.getByRole('combobox', { name: t.presenterView.panelComponent }), { target: { value: 'flow' } })
+    expect(screen.queryByTestId('view-next')).toBeNull()
+    expect(screen.getByTestId('map-root')).toBeInTheDocument()
+    expect(document.title).toBe(t.presenterView.pageTitle('Launch deck'))
+    expect(a.received.filter((m) => m.kind === 'hello')).toHaveLength(1)
+    fireEvent.click(screen.getByTestId('map-card-2'))
+    expect(a.commands()).toEqual([{ action: 'follow', index: 2 }])
+    fireEvent.keyDown(screen.getByTestId('map-scroll'), { key: '+' })
+    expect(screen.getByTestId('map-zoom')).toHaveTextContent('125%')
+    expect(screen.getByTestId('view-size')).toHaveTextContent('28')
+    fireEvent.keyDown(screen.getByTestId('map-scroll'), { key: 'ArrowRight' })
+    expect(a.commands()).toHaveLength(1)
+    for (let i = 0; i < 10; i++) fireEvent.click(next.getByRole('button', { name: t.workspace.zoomOut }))
+    expect(screen.getByTestId('map-zoom')).toHaveTextContent('20%')
+    unmount()
+
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    expect(await screen.findByTestId('map-zoom')).toHaveTextContent('20%')
+  })
+
+  it('adds, removes and resets panels, retaining an intentionally empty layout', async () => {
+    const a = audience()
+    const { unmount } = render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    await screen.findByTestId('view-root')
+    fireEvent.click(screen.getByRole('button', { name: t.presenterView.addPanel }))
+    expect(screen.getAllByRole('combobox', { name: t.presenterView.panelComponent })).toHaveLength(4)
+    expect(screen.getByTestId('map-root')).toBeInTheDocument()
+    screen.getAllByRole('button', { name: t.presenterView.removePanel }).forEach((button) => fireEvent.click(button))
+    expect(screen.getByText(t.presenterView.emptyLayout)).toBeInTheDocument()
+    unmount()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    expect(await screen.findByText(t.presenterView.emptyLayout)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: t.presenterView.resetLayout }))
+    expect(screen.getAllByRole('combobox', { name: t.presenterView.panelComponent })).toHaveLength(3)
+    expect(screen.getByTestId('view-current')).toBeInTheDocument()
+    expect(screen.getByTestId('view-next')).toBeInTheDocument()
+    expect(screen.getByTestId('view-notes')).toBeInTheDocument()
+  })
+
+  it('moves and resizes panels with pointers and keys without driving the show, and saves their geometry', async () => {
+    const a = audience()
+    const { unmount } = render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    const panel = await screen.findByTestId('view-panel-next')
+    vi.spyOn(screen.getByTestId('view-dashboard'), 'getBoundingClientRect').mockReturnValue({ width: 1000, height: 500 } as DOMRect)
+    const move = within(panel).getByRole('button', { name: t.presenterView.movePanel })
+    pointer(move, 'pointerdown', 600, 0)
+    pointer(move, 'pointermove', 400, 100)
+    pointer(move, 'pointerup', 400, 100)
+    expect(panel).toHaveStyle({ left: '40%', top: '20%', width: '40%', height: '36%' })
+    const resize = within(panel).getByTestId('view-resize-se')
+    pointer(resize, 'pointerdown', 800, 280)
+    pointer(resize, 'pointermove', 900, 330)
+    pointer(resize, 'pointerup', 900, 330)
+    expect(panel).toHaveStyle({ width: '50%', height: '46%' })
+    fireEvent.keyDown(move, { key: 'ArrowRight', shiftKey: true })
+    fireEvent.keyDown(resize, { key: 'ArrowDown' })
+    expect(panel).toHaveStyle({ left: '45%', height: '47%' })
+    fireEvent.keyDown(resize, { key: 'ArrowRight', shiftKey: true })
+    expect(panel).toHaveStyle({ width: '55%' })
+    fireEvent.keyDown(move, { key: 'ArrowRight', shiftKey: true })
+    expect(panel).toHaveStyle({ left: '45%' })
+    expect(a.commands()).toEqual([])
+    unmount()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    expect(await screen.findByTestId('view-panel-next')).toHaveStyle({ left: '45%', top: '20%', width: '55%', height: '47%' })
+  })
+
+  it.each([
+    { edge: 'n', x: 40, y: 30, width: 40, height: 26 },
+    { edge: 'ne', x: 40, y: 30, width: 50, height: 26 },
+    { edge: 'e', x: 40, y: 20, width: 50, height: 36 },
+    { edge: 'se', x: 40, y: 20, width: 50, height: 46 },
+    { edge: 's', x: 40, y: 20, width: 40, height: 46 },
+    { edge: 'sw', x: 50, y: 20, width: 30, height: 46 },
+    { edge: 'w', x: 50, y: 20, width: 30, height: 36 },
+    { edge: 'nw', x: 50, y: 30, width: 30, height: 26 },
+  ])('resizes from the $edge edge without moving the opposite edges', async ({ edge, x, y, width, height }) => {
+    const a = audience()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    const panel = await screen.findByTestId('view-panel-next')
+    vi.spyOn(screen.getByTestId('view-dashboard'), 'getBoundingClientRect').mockReturnValue({ width: 1000, height: 500 } as DOMRect)
+    const move = within(panel).getByRole('button', { name: t.presenterView.movePanel })
+    pointer(move, 'pointerdown', 0, 0)
+    pointer(move, 'pointermove', -200, 100)
+    pointer(move, 'pointerup', -200, 100)
+    const resize = within(panel).getByTestId(`view-resize-${edge}`)
+    pointer(resize, 'pointerdown', 0, 0)
+    pointer(resize, 'pointermove', 100, 50)
+    pointer(resize, 'pointerup', 100, 50)
+    expect(panel).toHaveStyle({ left: `${x}%`, top: `${y}%`, width: `${width}%`, height: `${height}%` })
+    if (edge === 'nw') {
+      pointer(resize, 'pointerdown', 0, 0)
+      pointer(resize, 'pointermove', 1000, 500)
+      pointer(resize, 'pointerup', 1000, 500)
+      expect(panel).toHaveStyle({ left: '60%', top: '36%', width: '20%', height: '20%' })
+      pointer(resize, 'pointerdown', 0, 0)
+      pointer(resize, 'pointermove', -1000, -500)
+      pointer(resize, 'pointerup', -1000, -500)
+      expect(panel).toHaveStyle({ left: '0%', top: '0%', width: '80%', height: '56%' })
+    }
+    expect(a.commands()).toEqual([])
+  })
+
+  it('scales previews and notes independently and restores their scales', async () => {
+    const a = audience()
+    const { unmount } = render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    const current = within(await screen.findByTestId('view-panel-current'))
+    const notes = within(screen.getByTestId('view-panel-notes'))
+    fireEvent.click(current.getByRole('button', { name: t.workspace.zoomIn }))
+    expect(screen.getByTestId('view-current-picture')).toHaveStyle({ width: '800px', height: '450px' })
+    expect(screen.getByTestId('view-next-picture')).toHaveStyle({ width: '360px', height: '360px' })
+    expect(screen.getByTestId('view-notes')).toHaveStyle({ fontSize: '28px' })
+    fireEvent.click(notes.getByRole('button', { name: t.workspace.zoomIn }))
+    expect(screen.getByTestId('view-notes')).toHaveStyle({ fontSize: '35px' })
+    unmount()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    expect(await screen.findByTestId('view-notes')).toHaveStyle({ fontSize: '35px' })
+    expect(screen.getByTestId('view-current-picture')).toHaveStyle({ width: '800px' })
+  })
+
+  it.each(['{broken', '[{"kind":"flow","x":-1}]', '[null]'])('falls back to the default layout for invalid stored configuration: %s', async (stored) => {
+    localStorage.setItem('doory.presenterView.layout.v1', stored)
+    const a = audience()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(() => a.init())
+    expect(await screen.findByTestId('view-current')).toBeInTheDocument()
+    expect(screen.getByTestId('view-next')).toBeInTheDocument()
+    expect(screen.getByTestId('view-notes')).toBeInTheDocument()
   })
 })
