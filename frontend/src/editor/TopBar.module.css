@@ -21,6 +21,13 @@
 .right {
   justify-content: flex-end;
 }
+.bar[data-present] {
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 220px) auto;
+}
+.bar[data-present] .title {
+  width: 100%;
+  min-width: 0;
+}
 .presence {
   display: flex;
   flex: none;
