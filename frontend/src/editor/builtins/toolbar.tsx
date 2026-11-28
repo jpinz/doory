@@ -13,6 +13,7 @@ const ClipSection = loadable(() => import('../toolbar/sections/clip').then((m) =
 const ImageGridSection = loadable(() => import('../toolbar/sections/imageGrid').then((m) => m.ImageGridSection), { fallback: null })
 const WheelSection = loadable(() => import('../dynamic/interactive/wheel/WheelSection').then((m) => m.WheelSection), { fallback: null })
 const DieSection = loadable(() => import('../dynamic/interactive/dice/DieSection').then((m) => m.DieSection), { fallback: null })
+const ScoreCardSection = loadable(() => import('../dynamic/scorecard/ScoreCardSection').then((m) => m.ScoreCardSection), { fallback: null })
 const RansomNoteSection = loadable(() => import('../dynamic/ransomNote/RansomNoteSection').then((m) => m.RansomNoteSection), { fallback: null })
 
 /**
@@ -32,6 +33,7 @@ export function registerBuiltinToolbarSections(): void {
   registerToolbarSection({ id: 'image-grid', order: 10, appliesTo: (sel) => onlyKind(sel.kinds, 'image-grid') && sel.ids.length === 1, component: ImageGridSection })
   registerToolbarSection({ id: 'wheel', order: 10, appliesTo: (sel) => onlyKind(sel.kinds, 'wheel') && sel.ids.length === 1, component: WheelSection })
   registerToolbarSection({ id: 'die', order: 10, appliesTo: (sel) => onlyKind(sel.kinds, 'die') && sel.ids.length === 1, component: DieSection })
+  registerToolbarSection({ id: 'score-card', order: 10, appliesTo: (sel) => onlyKind(sel.kinds, 'score-card') && sel.ids.length === 1, component: ScoreCardSection })
   registerToolbarSection({ id: 'ransom-note', order: 10, appliesTo: (sel) => onlyKind(sel.kinds, 'ransom-note') && sel.ids.length === 1, component: RansomNoteSection })
   registerToolbarSection({ id: 'video', order: 10, appliesTo: (sel) => onlyKind(sel.kinds, 'video') && sel.ids.length === 1, component: ClipSection })
   registerToolbarSection({ id: 'element', order: 10, appliesTo: (sel) => onlyKind(sel.kinds, 'element') && sel.ids.length === 1 && elementColors(sel.objects[0]).length > 0, component: ElementSection })

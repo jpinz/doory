@@ -22,6 +22,7 @@ import { InteractiveViewControls } from '../dynamic/interactive/InteractiveViewC
 import type { InteractiveControl } from '../dynamic/interactive/model'
 import interactiveStyles from '../dynamic/interactive/Interactive.module.css'
 import styles from './Presenter.module.css'
+import type { Scoreboard } from '../presenter/scoreboard'
 
 /** How long the stage may hold still before the pages are prepared again for its new size (window drag, notes opening). */
 const RESIZE_SETTLE_MS = 150
@@ -47,6 +48,7 @@ interface MotionStageProps {
   children?: React.ReactNode
   interactiveRef: Ref<MotionStageHandle>
   onInteractiveStatus: (pageId: string, text: string) => void
+  scoreboard?: Scoreboard
 }
 
 export interface MotionStageHandle {
@@ -76,7 +78,7 @@ function onStage(source: CanvasImageSource, css: Rect, stage: Size, dpr: number)
 /** Whether the show goes from `from` to `to` as a forward step even though `to` is the earlier page (the end of a loop). */
 const wraps = (loop: boolean, from: number, to: number, count: number): boolean => loop && from === count - 1 && to === 0
 
-export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerDown, onPointerUp, onNavigate, children, interactiveRef, onInteractiveStatus }: MotionStageProps) {
+export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerDown, onPointerUp, onNavigate, children, interactiveRef, onInteractiveStatus, scoreboard }: MotionStageProps) {
   const [ref, size] = useElementSize<HTMLDivElement>()
   const [settled, setSettled] = useState<Size>(NO_SIZE)
   const [readyIndex, setReadyIndex] = useState<number | null>(null)
@@ -96,6 +98,12 @@ export function PresenterMotionStage({ doc, index, plan, cache, loop, onPointerD
   const startedRef = useRef<{ index: number; at: number } | null>(null)
   const overlayLive = useRef(false)
   const page: DocPage = doc.pages[index]
+
+  useEffect(() => {
+    if (!scoreboard) return
+    cache.setScoreboard(scoreboard)
+    wakeFrame.current?.()
+  }, [cache, scoreboard])
 
   if (settled.width === 0 && size.width > 0) setSettled(size)
   useEffect(() => {

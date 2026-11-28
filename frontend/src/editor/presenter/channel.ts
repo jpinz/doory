@@ -18,6 +18,7 @@
  */
 import type { SlideshowState } from './machine'
 import { DURATION_MAX_SEC, DURATION_MIN_SEC, NOTES_MAX_LENGTH } from './timing'
+import { parseScoreboard, parseScoreCommand, type Scoreboard, type ScoreCommand } from './scoreboard'
 
 export const PROTOCOL_VERSION = 1
 export type Role = 'show' | 'view'
@@ -84,6 +85,7 @@ export interface PreviewBox {
 export const MAX_PAGE_INTERACTIVES = 100
 
 export type ViewCommand =
+  | ScoreCommand
   | { action: 'next' | 'prev' | 'first' | 'last' | 'toggle-pause' | 'toggle-loop' | 'toggle-blackout' | 'restart' | 'exit' }
   | { action: 'goto' | 'follow'; index: number }
   | { action: 'spin-wheel'; pageId: string; wheelId: string }
@@ -91,7 +93,8 @@ export type ViewCommand =
 
 export type ChannelMessage =
   | { kind: 'hello'; viewId?: string }
-  | { kind: 'init'; title: string; theme: 'light' | 'dark' | null; pages: PagePreview[]; state: SlideshowState }
+  | { kind: 'init'; title: string; theme: 'light' | 'dark' | null; pages: PagePreview[]; state: SlideshowState; scoreboard?: Scoreboard }
+  | { kind: 'scoreboard'; scoreboard: Scoreboard }
   | { kind: 'state'; state: SlideshowState }
   | { kind: 'command'; command: ViewCommand }
   | { kind: 'need-frame'; pageId: string; width: number }
@@ -105,6 +108,7 @@ export type Envelope = ChannelMessage & { v: typeof PROTOCOL_VERSION; from: Role
 const SENDER: Readonly<Record<ChannelMessage['kind'], Role | 'both'>> = {
   hello: 'view',
   init: 'show',
+  scoreboard: 'show',
   state: 'show',
   command: 'view',
   'need-frame': 'view',
@@ -203,6 +207,7 @@ function parseBox(value: unknown): PreviewBox | null {
 
 function parseCommand(value: unknown): ViewCommand | null {
   if (!isObject(value) || typeof value.action !== 'string') return null
+  if (value.action.startsWith('score-')) return parseScoreCommand(value)
   if (value.action === 'goto' || value.action === 'follow') return isInt(value.index, 0, MAX_PAGES - 1) ? { action: value.action, index: value.index } : null
   if (value.action === 'spin-wheel') {
     return isText(value.pageId, MAX_ID) && value.pageId !== '' && isText(value.wheelId, MAX_ID) && value.wheelId !== ''
@@ -225,6 +230,8 @@ function parseBody(kind: string, data: Record<string, unknown>): ChannelMessage 
       return viewId ? { kind, ...viewId } : null
     }
     case 'init': {
+      const scoreboard = data.scoreboard === undefined ? undefined : parseScoreboard(data.scoreboard)
+      if (scoreboard === null) return null
       const state = parseState(data.state)
       const theme = data.theme === 'light' || data.theme === 'dark' ? data.theme : data.theme === null ? null : undefined
       if (!state || theme === undefined || !isText(data.title, MAX_TITLE) || !Array.isArray(data.pages) || data.pages.length < 1 || data.pages.length > MAX_PAGES) return null
@@ -238,7 +245,12 @@ function parseBody(kind: string, data: Record<string, unknown>): ChannelMessage 
       const validActions = pages.every((page) => page.actions?.every((action) => pageIds.has(action.pageId)) && (page.links ?? []).every((link) => pageIds.has(link.pageId)))
       const validNext = pages.every((page) => page.nextPageId === undefined || page.nextPageId === null || pageIds.has(page.nextPageId))
       const validHistory = state.history.every((index) => index < pages.length)
-      return state.index < pages.length && validActions && validNext && validHistory ? { kind, title: data.title, theme, pages, state } : null
+      if (scoreboard && !scoreboard.cards.every((card) => pageIds.has(card.pageId))) return null
+      return state.index < pages.length && validActions && validNext && validHistory ? { kind, title: data.title, theme, pages, state, ...(scoreboard ? { scoreboard } : {}) } : null
+    }
+    case 'scoreboard': {
+      const scoreboard = parseScoreboard(data.scoreboard)
+      return scoreboard ? { kind, scoreboard } : null
     }
     case 'state': {
       const state = parseState(data.state)

@@ -57,6 +57,24 @@ const BLUE = [0, 0, 255] as const
 const WHITE = [255, 255, 255] as const
 
 describe('createFrameRenderer', () => {
+  it('updates scores and independently shows initially hidden cards without changing the page or z-order', async () => {
+    const card: DocObject = { id: 'score', type: 'doryscorecard', left: 120, top: 80, width: 160, height: 90, originX: 'center', originY: 'center', scoreCard: { entryId: 'team', name: 'Team' }, visible: false }
+    const p = page([card, rect('cover', '#0000ff', 120, 80)])
+    const original = JSON.stringify(p)
+    const renderer = await createFrameRenderer(p, SIZE, ctx, { multiplier: 1, interactive: true })
+    renderer.setScoreCards?.(new Map([['score', { name: 'Team', score: 12, visible: true }]]))
+    const before = pixels(renderer.render(0)).slice()
+    expect(pixelAt(renderer.canvas, 120, 80)).toEqual([0, 0, 255, 255])
+    expect(pixelAt(renderer.canvas, 50, 45)).not.toEqual([255, 255, 255, 255])
+    renderer.setScoreCards?.(new Map([['score', { name: 'Team', score: 99, visible: true }]]))
+    expect(pixels(renderer.render(0))).not.toEqual(before)
+    renderer.setScoreCards?.(new Map([['score', { name: 'Team', score: 99, visible: false }]]))
+    renderer.render(0)
+    expect(pixelAt(renderer.canvas, 50, 45)).toEqual([255, 255, 255, 255])
+    expect(JSON.stringify(p)).toBe(original)
+    renderer.dispose()
+  })
+
   it('uses the same controls and topmost hit testing for a wheel and die', async () => {
     const wheel: DocObject = { id: 'wheel', type: 'dorywheel', left: 120, top: 80, width: 140, height: 140, originX: 'center', originY: 'center', wheel: defaultWheel() }
     const die: DocObject = { id: 'die', type: 'dorydie', left: 120, top: 80, width: 100, height: 100, originX: 'center', originY: 'center', die: defaultDie() }

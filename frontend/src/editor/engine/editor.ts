@@ -19,6 +19,8 @@ import { InsertApi } from './api/insert'
 import { ImageGridApi, type CanvasImageFrame } from './api/imageGrids'
 import { WheelsApi } from '../dynamic/interactive/wheel/api'
 import { DiceApi } from '../dynamic/interactive/dice/api'
+import { ScoreCardsApi } from '../dynamic/scorecard/api'
+import { editorScores } from '../dynamic/scorecard/DoryScoreCard'
 import { RansomNoteApi } from '../dynamic/ransomNote/api'
 import type { InteractiveKind } from '../dynamic/interactive/model'
 import { PagesApi } from './api/pages'
@@ -121,6 +123,7 @@ export class EditorEngine implements PageCanvasHost {
   readonly imageGrids: ImageGridApi
   readonly wheels: WheelsApi
   readonly dice: DiceApi
+  readonly scoreCards: ScoreCardsApi
   readonly ransomNotes: RansomNoteApi
   readonly arrange: ArrangeApi
   readonly style: StyleApi
@@ -172,6 +175,7 @@ export class EditorEngine implements PageCanvasHost {
     this.imageGrids = new ImageGridApi(this)
     this.wheels = new WheelsApi(this)
     this.dice = new DiceApi(this)
+    this.scoreCards = new ScoreCardsApi(this)
     this.ransomNotes = new RansomNoteApi(this)
     this.arrange = new ArrangeApi(this)
     this.style = new StyleApi(this)
@@ -419,6 +423,7 @@ export class EditorEngine implements PageCanvasHost {
     const page = this.getPage(pageId)
     if (!page) throw new Error(`Unknown page ${pageId}`)
     const view = new PageCanvas(this, page, this.pageSizeOf(pageId), container)
+    editorScores.set(view.canvas, (id) => this.scoreCards.display(pageId, id))
     view.setEditLocks(this.editLocks.get(pageId) ?? NO_IDS)
     this.views.set(pageId, view)
     this.store.setState((s) => ({ loadingPages: [...s.loadingPages.filter((id) => id !== pageId), pageId] }))

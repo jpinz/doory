@@ -4,7 +4,7 @@
  * no document and loads no fonts: everything arrives over the channel (see `../channel.ts`), pictures included, so it
  * works the same for guests, shared links and designs of any size.
  */
-import { ChevronLeft, ChevronRight, MonitorOff, Minus, Pause, Play, Plus, Repeat, RotateCcw, Square, Workflow } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MonitorOff, Minus, Pause, Play, Plus, Repeat, RotateCcw, Square, Trophy, Workflow } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { t } from '../../strings'
 import type { ChannelLike, PagePreview, PreviewBox } from '../channel'
@@ -13,6 +13,7 @@ import { actionForKey, isActivationKey } from '../keymap'
 import { formatClock } from '../timing'
 import { useElementSize } from '../useElementSize'
 import { FlowMap, MAP_FRAMES } from './FlowMapView'
+import { ScoreboardView } from './ScoreboardView'
 import { bestFrame, configOf, extrapolate, frameWidthFor, pageClock, VIEW_TICK_MS } from './model'
 import { type Show, useShow } from './useShow'
 import { PresenterDashboard } from './PresenterDashboard'
@@ -91,6 +92,7 @@ interface PresenterViewProps {
 
 export function PresenterView({ session, createChannel }: PresenterViewProps) {
   const [mapOpen, setMapOpen] = useState(false)
+  const [scoreboardOpen, setScoreboardOpen] = useState(false)
   const link = useShow(session, createChannel, MAP_FRAMES)
   const { phase, show, lost, frames, interactiveStatus, send, request } = link
   const [now, setNow] = useState(() => performance.now())
@@ -126,7 +128,7 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
       if ((phase !== 'live' && phase !== 'ended') || e.defaultPrevented) return
-      if (e.target instanceof Element && e.target.closest('input, textarea, select')) return
+      if (e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable="true"]')) return
       if (!mapOpen && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === '+' || e.key === '=' || e.key === '-')) {
         e.preventDefault()
         changeSize(e.key === '-' ? -1 : 1)
@@ -205,12 +207,16 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
           {t.presenterView.lost}
         </p>
       ) : null}
-      {mapOpen ? (
+      {scoreboardOpen ? (
+        <main className={styles.map} data-testid="view-scoreboard-panel">
+          <ScoreboardView link={link} />
+        </main>
+      ) : mapOpen ? (
         <main className={styles.map} data-testid="view-map">
           <FlowMap link={link} />
         </main>
       ) : (
-      <PresenterDashboard renderPanel={(panel, setScale) => panel.kind === 'flow' ? <FlowMap link={link} embedded initialZoom={panel.scale} onZoomChange={setScale} /> : panel.kind === 'current' ? (
+      <PresenterDashboard renderPanel={(panel, setScale) => panel.kind === 'flow' ? <FlowMap link={link} embedded initialZoom={panel.scale} onZoomChange={setScale} /> : panel.kind === 'scoreboard' ? <ScoreboardView link={link} embedded /> : panel.kind === 'current' ? (
         <div className={styles.current}>
           <h2 className={styles.label}>{t.presenterView.current}</h2>
           <Preview scale={panel.scale} which={t.presenterView.current} index={index} page={state.ended ? undefined : page} frames={frames} request={request} testId="view-current" empty={t.presenterView.endOfShow} marks={state.ended ? undefined : marks} />
@@ -334,10 +340,14 @@ export function PresenterView({ session, createChannel }: PresenterViewProps) {
           title={t.presenterView.flowMapOpen}
           aria-pressed={mapOpen}
           data-testid="view-flow-map"
-          onClick={() => setMapOpen((open) => !open)}
+          onClick={() => { setMapOpen((open) => !open); setScoreboardOpen(false) }}
         >
           <Workflow size={18} aria-hidden="true" />
           <span>{t.presenterView.flowMap}</span>
+        </button>
+        <button type="button" className={styles.ctl} disabled={finished || !show.scoreboard} aria-pressed={scoreboardOpen} data-testid="view-scoreboard" onClick={() => { setScoreboardOpen((open) => !open); setMapOpen(false) }}>
+          <Trophy size={18} aria-hidden="true" />
+          <span>{t.scoreboard.title}</span>
         </button>
         <button type="button" className={`${styles.ctl} ${styles.danger}`} disabled={finished} data-testid="view-exit" onClick={() => send({ action: 'exit' })}>
           <Square size={16} aria-hidden="true" />

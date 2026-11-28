@@ -35,6 +35,7 @@ import { PageStrip } from './workspace/PageStrip'
 import { LazyTimelineHost } from './workspace/TimelineLoader'
 import { Workspace } from './workspace/Workspace'
 import { FlowBoard } from './flow/FlowBoard'
+import { ScoreboardTab } from './dynamic/scorecard/ScoreboardTab'
 import styles from './EditorApp.module.css'
 
 /** How many times the code of the live session is fetched again (after 1, 2, 4, 8 s …) before the person is told to reload. */
@@ -49,6 +50,9 @@ function LiveRegion() {
   )
 }
 
+type EditorView = 'slides' | 'flow' | 'scoreboard'
+const VIEWS: readonly EditorView[] = ['slides', 'flow', 'scoreboard']
+
 /**
  * The Doory editor. Mount it with a document, meta and an `EditorAdapter`; everything else (canvas, tools,
  * panels, history, export, autosave triggering) lives inside.
@@ -59,7 +63,7 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
   const [root, setRoot] = useState<HTMLDivElement | null>(null)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const [stripOpen, setStripOpen] = useState(true)
-  const [view, setView] = useState<'slides' | 'flow'>('slides')
+  const [view, setView] = useState<EditorView>('slides')
   const viewId = useId()
   const latest = useLatest({ onTitleChange, onSaveStateChange })
   const [session, setSession] = useState<CollabSession | null>(null)
@@ -166,8 +170,8 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
   }, [])
 
   const onTitle = (title: string): void => latest.current.onTitleChange?.(title)
-  const changeView = (next: 'slides' | 'flow'): void => {
-    if (next === 'flow') {
+  const changeView = (next: EditorView): void => {
+    if (next !== 'slides') {
       engine.clearSelection()
       engine.patchUi({ spaceDown: false, panelId: null })
     } else {
@@ -189,13 +193,15 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
           <div className={styles.viewTabs} role="tablist" aria-label={t.flowBoard.modes} onKeyDown={(event) => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return
             event.preventDefault()
-            const next = event.key === 'Home' ? 'slides' : event.key === 'End' ? 'flow' : view === 'slides' ? 'flow' : 'slides'
+            const at = VIEWS.indexOf(view)
+            const next = event.key === 'Home' ? VIEWS[0] : event.key === 'End' ? VIEWS[VIEWS.length - 1]
+              : VIEWS[(at + (event.key === 'ArrowRight' ? 1 : VIEWS.length - 1)) % VIEWS.length]
             changeView(next)
             event.currentTarget.querySelector<HTMLButtonElement>(`[data-view="${next}"]`)?.focus()
           }}>
-            {(['slides', 'flow'] as const).map((mode) => <button key={mode} type="button" role="tab" data-view={mode}
+            {VIEWS.map((mode) => <button key={mode} type="button" role="tab" data-view={mode}
               id={`${viewId}-${mode}-tab`} aria-controls={`${viewId}-${mode}-panel`} aria-selected={view === mode}
-              tabIndex={view === mode ? 0 : -1} onClick={() => changeView(mode)}>{t.flowBoard[mode]}</button>)}
+              tabIndex={view === mode ? 0 : -1} onClick={() => changeView(mode)}>{mode === 'scoreboard' ? t.scoreboard.title : t.flowBoard[mode]}</button>)}
           </div>
           <div className={styles.body}>
             {view === 'slides' ? <><ToolRail edge="side" /><SidebarHost /></> : null}
@@ -213,6 +219,9 @@ export const EditorApp = forwardRef<EditorHandle, EditorAppProps>(function Edito
                   engine.pages.activate(pageId)
                   requestAnimationFrame(() => engine.view.scrollToPage(pageId))
                 }} /> : null}
+              </div>
+              <div className={styles.slideWorkspace} role="tabpanel" id={`${viewId}-scoreboard-panel`} aria-labelledby={`${viewId}-scoreboard-tab`} hidden={view !== 'scoreboard'}>
+                {view === 'scoreboard' ? <ScoreboardTab /> : null}
               </div>
             </div>
           </div>

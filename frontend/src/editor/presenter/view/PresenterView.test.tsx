@@ -66,6 +66,56 @@ describe('PresenterView', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(t.presenterView.unsupported)
   })
 
+  it('manages scores and card bindings without firing slide shortcuts while typing', async () => {
+    const a = audience()
+    const user = userEvent.setup()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    await waitFor(() => expect(a.received.some((message) => message.kind === 'hello')).toBe(true))
+    act(() => a.show.send({
+      kind: 'init', title: 'Scores', theme: null, pages, state: stateAt(),
+      scoreboard: {
+        entries: [{ id: 'team', name: 'Team', score: 0 }],
+        cards: [{ pageId: 'a', id: 'card', label: 'Card', entryId: 'team', visible: true }],
+      },
+    }))
+    await user.click(await screen.findByTestId('view-scoreboard'))
+    await user.click(screen.getByRole('button', { name: `${t.scoreboard.increase}: Team` }))
+    await user.clear(screen.getByLabelText(`${t.scoreboard.score}: Team`))
+    await user.type(screen.getByLabelText(`${t.scoreboard.score}: Team`), '-12{Enter}')
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    await user.click(screen.getByRole('button', { name: `${t.scoreboard.hide}: Intro: Team` }))
+    expect(a.commands()).toEqual([
+      { action: 'score-adjust', entryId: 'team', value: 1 },
+      { action: 'score-set', entryId: 'team', value: -12 },
+      { action: 'score-card', pageId: 'a', cardId: 'card', visible: false },
+    ])
+    await user.click(screen.getByTestId('view-flow-map'))
+    expect(screen.queryByTestId('view-scoreboard-panel')).toBeNull()
+    expect(screen.getByTestId('view-map')).toBeInTheDocument()
+  })
+
+  it('shows the scoreboard as a dashboard panel beside the notes and keeps it in the saved layout', async () => {
+    const a = audience()
+    const init = () => a.show.send({
+      kind: 'init', title: 'Scores', theme: null, pages, state: stateAt(),
+      scoreboard: { entries: [{ id: 'team', name: 'Team', score: 0 }], cards: [] },
+    })
+    const { unmount } = render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(init)
+    const next = within(await screen.findByTestId('view-panel-next'))
+    fireEvent.change(next.getByRole('combobox', { name: t.presenterView.panelComponent }), { target: { value: 'scoreboard' } })
+    expect(next.queryByRole('button', { name: t.workspace.zoomIn })).toBeNull()
+    expect(screen.getByTestId('view-notes')).toBeInTheDocument()
+    fireEvent.click(next.getByRole('button', { name: `${t.scoreboard.increase}: Team` }))
+    expect(a.commands()).toEqual([{ action: 'score-adjust', entryId: 'team', value: 1 }])
+    unmount()
+
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    act(init)
+    expect(within(await screen.findByTestId('view-panel-next')).getByTestId('view-scoreboard-embedded')).toBeInTheDocument()
+  })
+
   it('says hello until the presentation answers, then shows it', async () => {
     const a = audience()
     render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
@@ -96,6 +146,22 @@ describe('PresenterView', () => {
     act(() => a.show.send({ kind: 'frame', pageId: 'a', width: (current as { width: number }).width, image: new Blob(['x'], { type: 'image/png' }) }))
     const img = await screen.findByAltText(t.presenterView.previewAlt(t.presenterView.current, 1, 'Intro'))
     expect(img).toHaveAttribute('src', 'blob:preview')
+  })
+
+  it('requests fresh slide pictures after score updates', async () => {
+    const a = audience()
+    render(<PresenterView session={SESSION} createChannel={a.hub.create} />)
+    await waitFor(() => expect(a.received.some((message) => message.kind === 'hello')).toBe(true))
+    act(() => a.init())
+    await waitFor(() => expect(a.received.some((message) => message.kind === 'need-frame')).toBe(true))
+    const request = a.received.find((message) => message.kind === 'need-frame') as Extract<Envelope, { kind: 'need-frame' }>
+    act(() => a.show.send({ kind: 'frame', pageId: request.pageId, width: request.width, image: new Blob(['x'], { type: 'image/png' }) }))
+    await screen.findByAltText(t.presenterView.previewAlt(t.presenterView.current, 1, 'Intro'))
+    const requestsBefore = a.received.filter((message) => message.kind === 'need-frame').length
+    act(() => a.show.send({ kind: 'scoreboard', scoreboard: { entries: [{ id: 'team', name: 'Team', score: 3 }], cards: [] } }))
+    await waitFor(() => expect(a.received.filter((message) => message.kind === 'need-frame').length).toBeGreaterThan(requestsBefore))
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview')
+    expect(screen.queryByAltText(t.presenterView.previewAlt(t.presenterView.current, 1, 'Intro'))).toBeNull()
   })
 
   it('sends linked slide actions from the presenter view', async () => {

@@ -23,6 +23,7 @@ import { renderableObjects } from '../engine/render'
 import { type LoadContext, deserializeObjects } from '../engine/serialization'
 import { DoryWheel } from '../dynamic/interactive/wheel/DoryWheel'
 import { DoryDie } from '../dynamic/interactive/dice/DoryDie'
+import { liveScoreCards, type DoryScoreCard, type ScoreCardDisplay } from '../dynamic/scorecard/DoryScoreCard'
 import { interactiveAt, interactiveObjects, type InteractiveObject } from '../dynamic/interactive/at'
 import type { InteractiveControl } from '../dynamic/interactive/model'
 import { t } from '../strings'
@@ -57,6 +58,7 @@ export interface FrameRendererOptions {
 }
 
 export interface FrameRenderer {
+  setScoreCards?(displays: ReadonlyMap<string, ScoreCardDisplay>): void
   readonly interactive?: FrameInteractions
   /** Page size in px. */
   readonly page: PageDims
@@ -124,6 +126,7 @@ interface AnimatedLayer {
   /** A video clip: its tile is painted again whenever the clip shows another picture. */
   clip?: ClipPart
   interactive?: { holder: StaticCanvas; objects: InteractiveObject[]; versions: number[] }
+  scoreCards?: { holder: StaticCanvas; objects: DoryScoreCard[] }
 }
 
 const interactionVersion = (object: InteractiveObject): number => object instanceof DoryDie ? object.rollVersion : object.spinVersion
@@ -453,7 +456,9 @@ function drawAnimated(ctx: Surface, layer: AnimatedLayer, s: Readonly<Sample>, m
  */
 export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: LoadContext, options: FrameRendererOptions): Promise<FrameRenderer> {
   const m = Math.max(0.05, options.multiplier)
-  const docs = renderableObjects(page.objects)
+  const docs = options.interactive
+    ? page.objects.filter((object) => renderableObjects([object]).length > 0 || object.type.toLowerCase() === 'doryscorecard')
+    : renderableObjects(page.objects)
   const moving = options.transparent ? null : createMovingBackground(page.background, size, m)
   const [objects, background] = await Promise.all([
     deserializeObjects(docs, ctx),
@@ -498,7 +503,8 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
     const doc = docs[i]
     const clip = options.media ? readClip(doc) : null
     const interactions = options.interactive ? interactiveObjects([obj]) : []
-    if (!isAnimated(doc) && !clip && interactions.length === 0) {
+    const scoreCards = options.interactive ? liveScoreCards([obj]) : []
+    if (!isAnimated(doc) && !clip && interactions.length === 0 && scoreCards.length === 0) {
       run.push(obj)
       return
     }
@@ -514,14 +520,18 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
       const found = textUnitBoxes(obj, by, pad)
       if (found) boxes.set(by, found)
     }
-    if (interactions.length > 0) {
+    if (interactions.length > 0 || scoreCards.length > 0) {
       const held = region.w > 0 && region.h > 0 ? holdTile(obj, region, m) : null
       if (!held) {
         obj.dispose()
         return
       }
       held.holder.renderAll()
-      layers.push({ kind: 'animated', object: doc, box, tile: held.placed, units: new Map(), interactive: { holder: held.holder, objects: interactions, versions: interactions.map(interactionVersion) } })
+      layers.push({
+        kind: 'animated', object: doc, box, tile: held.placed, units: new Map(),
+        interactive: { holder: held.holder, objects: interactions, versions: interactions.map(interactionVersion) },
+        ...(scoreCards.length ? { scoreCards: { holder: held.holder, objects: scoreCards } } : {}),
+      })
       return
     }
     if (clip && media) {
@@ -555,6 +565,7 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   const clipLayers = animated.filter((l) => l.clip)
   const parts = clipLayers.map((l) => l.clip as ClipPart)
   const interactiveParts = animated.flatMap((layer) => layer.interactive ? [layer.interactive] : [])
+  const scoreParts = animated.flatMap((layer) => layer.scoreCards ? [layer.scoreCards] : [])
   const interactions = interactiveParts.flatMap((part) => part.objects)
   const wheels = interactions.filter((object): object is DoryWheel => object instanceof DoryWheel)
   const dice = interactions.filter((object): object is DoryDie => object instanceof DoryDie)
@@ -587,6 +598,17 @@ export async function createFrameRenderer(page: DocPage, size: PageDims, ctx: Lo
   }
 
   return {
+    setScoreCards(displays) {
+      if (disposed) return
+      for (const part of scoreParts) {
+        for (const object of part.objects) {
+          const display = displays.get(asDory(object).id!)
+          if (display) object.setDisplay(display)
+        }
+        part.holder.renderAll()
+      }
+      last = null
+    },
     interactive: interactions.length > 0 || hasLinks ? {
       controls: [
         ...wheels.map((wheel): InteractiveControl => ({ id: asDory(wheel).id!, kind: 'wheel', label: asDory(wheel).name || t.wheel.name })),

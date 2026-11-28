@@ -4,7 +4,7 @@ import { t } from '../../strings'
 import { newSessionId } from '../channel'
 import styles from './PresenterView.module.css'
 
-export type PanelKind = 'current' | 'next' | 'notes' | 'flow'
+export type PanelKind = 'current' | 'next' | 'notes' | 'flow' | 'scoreboard'
 export interface PresenterPanel {
   id: string
   kind: PanelKind
@@ -16,7 +16,7 @@ export interface PresenterPanel {
 }
 
 const LAYOUT_KEY = 'doory.presenterView.layout.v1'
-const KINDS: PanelKind[] = ['current', 'next', 'notes', 'flow']
+const KINDS: PanelKind[] = ['current', 'next', 'notes', 'flow', 'scoreboard']
 const RESIZE_EDGES = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'] as const
 type ResizeEdge = (typeof RESIZE_EDGES)[number]
 const MIN_WIDTH = 20
@@ -73,7 +73,7 @@ export function PresenterDashboard({ renderPanel }: { renderPanel: (panel: Prese
   const [newKind, setNewKind] = useState<PanelKind>('flow')
   const board = useRef<HTMLDivElement>(null)
   const drag = useRef<Drag | null>(null)
-  const labels: Record<PanelKind, string> = { current: t.presenterView.current, next: t.presenterView.next, notes: t.presenterView.notes, flow: t.presenterView.flowMap }
+  const labels: Record<PanelKind, string> = { current: t.presenterView.current, next: t.presenterView.next, notes: t.presenterView.notes, flow: t.presenterView.flowMap, scoreboard: t.scoreboard.title }
 
   useEffect(() => {
     try {
@@ -156,7 +156,7 @@ export function PresenterDashboard({ renderPanel }: { renderPanel: (panel: Prese
                 <select className={styles.panelSelect} aria-label={t.presenterView.panelComponent} value={panel.kind} onChange={(event) => update(panel.id, { kind: event.target.value as PanelKind, scale: 1 })}>
                   {KINDS.map((kind) => <option key={kind} value={kind}>{labels[kind]}</option>)}
                 </select>
-                {panel.kind !== 'flow' ? (
+                {panel.kind !== 'flow' && panel.kind !== 'scoreboard' ? (
                   <span className={styles.sizer} role="group" aria-label={t.workspace.zoomControls}>
                     <button type="button" className={styles.mini} aria-label={t.workspace.zoomOut} disabled={panel.scale <= 0.25} onClick={() => update(panel.id, { scale: clamp(panel.scale / 1.25, 0.25, 3) })}><Minus size={14} aria-hidden="true" /></button>
                     <button type="button" className={styles.scaleValue} aria-label={t.workspace.zoomLevel} onClick={() => update(panel.id, { scale: 1 })}>{Math.round(panel.scale * 100)}%</button>

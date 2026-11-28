@@ -30,6 +30,7 @@ import { PresenterMotionStage, type MotionStageHandle } from './PresenterMotionS
 import { PresenterStage } from './PresenterStage'
 import { PresenterTimeline } from './PresenterTimeline'
 import styles from './Presenter.module.css'
+import { initialScoreboard, savedScoreboard, scoreboardDocument, updateScoreboard, type ScoreCommand } from '../presenter/scoreboard'
 
 /** Holding L this long makes the laser pointer a momentary tool (a shorter press switches it on until the next press). */
 const LASER_HOLD_MS = 350
@@ -80,6 +81,16 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   const editor = useEditor()
   const root = usePortalRoot()
   const [doc] = useState(() => editor.state.doc)
+  const [scores, setScores] = useState(() => initialScoreboard(doc))
+  const scoreboard = scores
+  const scoreCommand = useCallback((command: ScoreCommand) => setScores((current) => updateScoreboard(current, command)), [])
+  const previewDoc = useMemo(() => scoreboardDocument(doc, scores), [doc, scores])
+  const savedScores = useRef(scores)
+  useEffect(() => {
+    if (scores === savedScores.current) return
+    savedScores.current = scores
+    editor.scoreCards.saveScoreboard(savedScoreboard(doc, scores))
+  }, [editor, doc, scores])
   const [title] = useState(() => editor.state.title)
   const [start] = useState(() => Math.max(0, doc.pages.findIndex((p) => p.id === editor.state.activePageId)))
   const [session] = useState(() => (isSessionId(props?.session) ? props.session : newSessionId()))
@@ -89,8 +100,11 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   const durations = useMemo(() => motionDurations(resolveDurations(doc.pages), plan), [doc, plan])
   const config = useMemo(() => ({ count: doc.pages.length, durations, nextIndices: resolveNextIndices(doc.pages) }), [doc, durations])
   const [state, dispatch] = useSlideshow(config, { index: start, autoAdvance: hasTimings(doc.pages) })
-  const frames = useMemo(() => createFrameCache(editor, doc), [editor, doc])
-  const previews = useMemo(() => createFrameCache(editor, doc), [editor, doc])
+  // Still pages are drawn from the score-aware snapshot, so score changes and card show/hide reach the stage.
+  const frames = useMemo(() => createFrameCache(editor, previewDoc), [editor, previewDoc])
+  useEffect(() => () => frames.clear(), [frames])
+  const previews = useMemo(() => createFrameCache(editor, previewDoc), [editor, previewDoc])
+  useEffect(() => () => previews.clear(), [previews])
   // A show with motion in it draws its pages through frame renderers; a show of still pages keeps the plain stage.
   const motionFrames = useMemo(() => (plan.moves ? createMotionCache(editor, doc) : null), [editor, doc, plan])
   useEffect(() => () => motionFrames?.dispose(), [motionFrames])
@@ -124,7 +138,7 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
   const close = useCallback(() => editor.closeDialog(), [editor])
   const spinWheel = useCallback((pageId: string, wheelId: string) => motionStage.current?.spin(pageId, wheelId) ?? false, [])
   const rollDice = useCallback((pageId: string, dieIds: readonly string[]) => motionStage.current?.roll(pageId, dieIds) ?? false, [])
-  const host = useViewHost({ session, title, doc, durations, state, dispatch, onExit: close, onSpinWheel: spinWheel, onRollDice: rollDice, previews })
+  const host = useViewHost({ session, title, doc, durations, state, dispatch, onExit: close, onSpinWheel: spinWheel, onRollDice: rollDice, previews, previewDoc, scoreboard, onScoreCommand: scoreCommand })
   const viewOpen = host.connected && windowOpen
 
   // Everything the key handler reads: it is registered once and must never see stale values.
@@ -374,11 +388,11 @@ export function Presenter({ props }: { props?: Record<string, unknown> }) {
     >
       <div className={styles.main}>
         {motionFrames ? (
-          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} interactiveRef={motionStage} onInteractiveStatus={host.interactiveStatus} onPointerDown={onStageDown} onPointerUp={onStageUp} onNavigate={followLink}>
+          <PresenterMotionStage doc={doc} index={state.index} plan={plan} cache={motionFrames} loop={state.loop} interactiveRef={motionStage} onInteractiveStatus={host.interactiveStatus} scoreboard={scoreboard} onPointerDown={onStageDown} onPointerUp={onStageUp} onNavigate={followLink}>
             {stageOverlays}
           </PresenterMotionStage>
         ) : (
-          <PresenterStage doc={doc} index={state.index} cache={frames} onPointerDown={onStageDown} onPointerUp={onStageUp}>
+          <PresenterStage doc={previewDoc} index={state.index} cache={frames} onPointerDown={onStageDown} onPointerUp={onStageUp}>
             {stageOverlays}
           </PresenterStage>
         )}
