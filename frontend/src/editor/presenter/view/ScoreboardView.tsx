@@ -8,7 +8,7 @@ import type { Show } from './useShow'
 import styles from './ScoreboardView.module.css'
 
 /** How much one −/+ click changes a score. */
-export const SCORE_STEPS = [1, 5, 10, 25, 50, 100] as const
+const SCORE_STEPS = [1, 5, 10, 25, 50, 100] as const
 
 function ScoreRow({ entry, step, send }: { entry: ScoreEntry; step: number; send: (command: ScoreCommand) => void }) {
   const adjust = (direction: 1 | -1): void => {
