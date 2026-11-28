@@ -102,6 +102,14 @@ describe('editor chrome', () => {
     await waitFor(() => expect(engine!.state.selection.kinds).toEqual(['die']))
   })
 
+  it('adds a ransom note from the Dynamic tool', async () => {
+    engine = await mount()
+    await userEvent.click(screen.getByRole('button', { name: t.rail.dynamic }))
+    const panel = await screen.findByRole('complementary', { name: t.rail.dynamic })
+    await userEvent.click(within(panel).getByRole('button', { name: t.ransomNote.add }))
+    await waitFor(() => expect(engine!.state.selection.kinds).toEqual(['ransom-note']))
+  })
+
   it('keeps a tool open beside the rail while things are added from it, until its entry is pressed again', async () => {
     engine = await mount()
     const shapes = screen.getByRole('button', { name: t.rail.shapes })

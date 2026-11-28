@@ -20,6 +20,7 @@ import type {
 import type { ImageGridSpec } from '../../grids/model'
 import type { WheelSpec } from '../../dynamic/interactive/wheel/model'
 import type { DieSpec } from '../../dynamic/interactive/dice/model'
+import type { RansomNoteSpec } from '../../dynamic/ransomNote/model'
 
 export interface QrSpec {
   text: string
@@ -47,6 +48,7 @@ export interface DoryProps {
   imageGrid?: ImageGridSpec
   wheel?: WheelSpec
   die?: DieSpec
+  ransomNote?: RansomNoteSpec
   /** Stable cell label scoped to the containing image grid. */
   gridCellId?: string
   /** Slide this object opens when clicked during a presentation. */

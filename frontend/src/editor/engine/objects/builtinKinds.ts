@@ -22,6 +22,8 @@ import '../../dynamic/interactive/wheel/DoryWheel'
 import { readWheel } from '../../dynamic/interactive/wheel/model'
 import '../../dynamic/interactive/dice/DoryDie'
 import { readDie } from '../../dynamic/interactive/dice/model'
+import '../../dynamic/ransomNote/DoryRansomNote'
+import { readRansomNote } from '../../dynamic/ransomNote/model'
 
 
 const TEXT_TYPES = new Set(['textbox', 'itext', 'text'])
@@ -50,6 +52,18 @@ function hydrateImage(obj: FabricObject): void {
 }
 
 export function registerBuiltinKinds(): void {
+  registerObjectKind({
+    id: 'ransom-note',
+    label: t.ransomNote.name,
+    priority: 110,
+    matches: (o) => typeOf(o) === 'doryransomnote',
+    extraProps: ['ransomNote'],
+    prepare(json) {
+      const spec = readRansomNote(json.ransomNote)
+      if (spec) json.ransomNote = spec
+    },
+  })
+
   registerObjectKind({
     id: 'die',
     label: t.dice.name,

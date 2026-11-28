@@ -1,6 +1,6 @@
 import { msg } from '@/i18n/catalog'
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { EditorProblemPage, EditorSkeleton } from '@/features/editor/EditorStates'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { resolveCreateSpec, type CreateSpec, type TemplateSpec } from '@/features/presets'
@@ -20,6 +20,7 @@ import { TriangleAlert } from 'lucide-react'
 export default function CreatePage() {
   usePageMeta({ title: msg("Creating your design"), noindex: true })
   const [params] = useSearchParams()
+  const { hash } = useLocation()
   const navigate = useNavigate()
   const { status } = useAuth()
   const started = useRef(false)
@@ -33,6 +34,17 @@ export default function CreatePage() {
       // A preset the server's catalogue adds is only known once that has loaded.
       const spec = resolveCreateSpec(params, params.has('preset') ? await sizePresetsReady() : getSizePresets())
       try {
+        if (hash.startsWith('#ransom-note=')) {
+          const { readNoteLink, noteDesign } = await import('@/editor/dynamic/ransomNote/link')
+          const note = readNoteLink(hash)
+          if (!note) throw new Error('Invalid ransom-note link')
+          const input = noteDesign(note)
+          const target = status === 'authenticated'
+            ? `/design/${(await designsApi.create({ ...input, width: input.document.width, height: input.document.height })).id}`
+            : `/local/${(await createLocalDesign(input)).id}`
+          navigate(target, { replace: true })
+          return
+        }
         const target = status === 'authenticated' ? await createAccountDesign(spec) : await createGuestDesign(spec)
         navigate(target, { replace: true })
       } catch (error) {
@@ -42,7 +54,7 @@ export default function CreatePage() {
         else setFailure('error')
       }
     })()
-  }, [status, params, navigate, attempt])
+  }, [status, params, hash, navigate, attempt])
 
   if (failure === 'template-missing') {
     return <EditorProblemPage problem="not-found" extraAction={<Button variant="secondary" onClick={() => navigate('/templates')}>{msg("Browse templates")}</Button>} />
