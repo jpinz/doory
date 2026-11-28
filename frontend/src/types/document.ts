@@ -82,7 +82,18 @@ export interface DoryDocument {
   pages: DocPage[]
   /** Music, voiceovers and sound effects of the design (see `editor/audio`). Absent: no sound. */
   audioTracks?: AudioTrack[]
+  /** The presentation scoreboard, kept between presentations (see `editor/presenter/scoreboard`). Absent: none yet. */
+  scoreboard?: DocScoreboard
   meta?: DocMeta
+}
+
+/**
+ * Players and teams with their scores, and the score cards whose player or visibility was changed while presenting.
+ * A card that is not listed shows the player chosen in the editor, as the editor shows it.
+ */
+export interface DocScoreboard {
+  entries: { id: string; name: string; score: number }[]
+  cards: { pageId: string; id: string; entryId: string | null; visible: boolean }[]
 }
 
 /* ------------------------------------------------------------------------------------------------

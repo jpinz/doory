@@ -1,0 +1,80 @@
+.root {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.root h2,
+.root h3 {
+  margin: 0 0 var(--space-3);
+}
+.root p {
+  color: var(--color-text-muted);
+}
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.name {
+  flex: 1;
+  min-width: 120px;
+  overflow-wrap: anywhere;
+}
+.root input,
+.root select,
+.root button {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+.root input:not(.score),
+.nameInput,
+.root select {
+  flex: 1;
+  min-width: 120px;
+}
+.score {
+  width: 110px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.root button {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+.root button:disabled,
+.controls:disabled {
+  opacity: 0.6;
+}
+.embedded {
+  height: 100%;
+  border-radius: 0;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.steps button[aria-pressed='true'] {
+  background: var(--accent, #6a52d9);
+  border-color: var(--accent, #6a52d9);
+  color: #ffffff;
+}

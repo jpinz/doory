@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { canLink, type ChannelLike, isSessionId, newSessionId, openLink, type PagePreview, type PresenterLink, type ViewCommand } from '../channel'
 import type { SlideshowState } from '../machine'
 import { type ReceivedFrame, SIGNAL_LOST_MS } from './model'
+import type { Scoreboard } from '../scoreboard'
 
 export type Phase = 'connecting' | 'live' | 'ended' | 'unsupported' | 'invalid'
 
@@ -12,6 +13,7 @@ export interface ShowSnapshot {
   state: SlideshowState
   /** `performance.now()` when `state` arrived: the view's clocks run on from there. */
   receivedAt: number
+  scoreboard?: Scoreboard
 }
 
 export interface Show {
@@ -72,8 +74,14 @@ export function useShow(session: string | null, createChannel?: (name: string) =
       setLost(false)
       switch (message.kind) {
         case 'init':
-          setShow({ title: message.title, theme: message.theme, pages: message.pages, state: message.state, receivedAt: performance.now() })
+          setShow({ title: message.title, theme: message.theme, pages: message.pages, state: message.state, receivedAt: performance.now(), ...(message.scoreboard ? { scoreboard: message.scoreboard } : {}) })
           setPhase('live')
+          break
+        case 'scoreboard':
+          setShow((cur) => (cur ? { ...cur, scoreboard: message.scoreboard } : cur))
+          for (const frame of stored.splice(0)) URL.revokeObjectURL(frame.url)
+          asked.current.clear()
+          setFrames(new Map())
           break
         case 'state':
           setShow((cur) => (cur ? { ...cur, state: message.state, receivedAt: performance.now() } : cur))

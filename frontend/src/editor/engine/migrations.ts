@@ -6,6 +6,7 @@
  */
 import { clampDimension, createBlankPage, newId } from '@/lib/document'
 import { readTracks } from '../audio/model'
+import { readSavedScoreboard } from '../dynamic/scorecard/model'
 import { normalizeSizes } from './pageSizes'
 import { type DocObject, type DocPage, type DoryDocument, MAX_PAGES, type PageBackground, SCHEMA_VERSION } from '@/types/document'
 
@@ -105,5 +106,7 @@ export function migrateDocument(raw: unknown): DoryDocument {
   // The usable audio tracks; an empty list is not written.
   const tracks = readTracks({ audioTracks: doc.audioTracks as DoryDocument['audioTracks'] })
   if (tracks.length > 0) out.audioTracks = [...tracks]
+  const scoreboard = readSavedScoreboard(doc.scoreboard)
+  if (scoreboard) out.scoreboard = scoreboard
   return normalizeSizes(out)
 }

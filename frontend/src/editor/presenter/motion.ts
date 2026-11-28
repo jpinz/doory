@@ -20,6 +20,8 @@ import { DURATION_MAX_SEC } from './timing'
 import { elementSources } from '../clips/elementSource'
 import { wheelDocuments } from '../dynamic/interactive/wheel/model'
 import { dieDocuments } from '../dynamic/interactive/dice/model'
+import { scoreCardDocuments } from '../dynamic/scorecard/model'
+import { scoreDisplays, type Scoreboard } from './scoreboard'
 
 /** The fade that stands in for every transition when the viewer asked for reduced motion. */
 export const REDUCED_TRANSITION: PageTransition = { preset: 'fade', durationMs: 250, easing: 'ease-in-out' }
@@ -60,7 +62,7 @@ export function planMotion(doc: Pick<DoryDocument, 'pages'>, reduced: boolean): 
   return {
     pages,
     reduced,
-    moves: hasPresentationLinks || pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0 || dieDocuments(p.page.objects).length > 0),
+    moves: hasPresentationLinks || pages.some((p) => p.transition !== null || p.timing.spans.length > 0 || p.timing.clips > 0 || wheelDocuments(p.page.objects).length > 0 || dieDocuments(p.page.objects).length > 0 || scoreCardDocuments(p.page.objects).length > 0),
   }
 }
 
@@ -113,6 +115,12 @@ export class MotionCache {
   private clock = 0
   private generation = 0
   private current: string | null = null
+  private scoreboard: Scoreboard | null = null
+
+  setScoreboard(board: Scoreboard): void {
+    this.scoreboard = board
+    for (const entry of this.entries.values()) entry.renderer.setScoreCards?.(scoreDisplays(board, entry.page.id))
+  }
 
   constructor(
     private readonly make: MakeRenderer,
@@ -146,6 +154,7 @@ export class MotionCache {
           renderer.dispose()
           return renderer
         }
+        if (this.scoreboard) renderer.setScoreCards?.(scoreDisplays(this.scoreboard, page.id))
         this.store(key, page, renderer)
         return renderer
       })

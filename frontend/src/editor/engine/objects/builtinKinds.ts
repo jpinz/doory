@@ -22,6 +22,8 @@ import '../../dynamic/interactive/wheel/DoryWheel'
 import { readWheel } from '../../dynamic/interactive/wheel/model'
 import '../../dynamic/interactive/dice/DoryDie'
 import { readDie } from '../../dynamic/interactive/dice/model'
+import '../../dynamic/scorecard/DoryScoreCard'
+import { readScoreCard } from '../../dynamic/scorecard/model'
 
 
 const TEXT_TYPES = new Set(['textbox', 'itext', 'text'])
@@ -50,6 +52,18 @@ function hydrateImage(obj: FabricObject): void {
 }
 
 export function registerBuiltinKinds(): void {
+  registerObjectKind({
+    id: 'score-card',
+    label: t.scoreboard.card,
+    priority: 110,
+    matches: (o) => typeOf(o) === 'doryscorecard',
+    extraProps: ['scoreCard', 'scoreOnly', 'scoreNamePosition', 'scoreBackground', 'scoreColor'],
+    prepare(json) {
+      const spec = readScoreCard(json.scoreCard)
+      if (spec) json.scoreCard = spec
+    },
+  })
+
   registerObjectKind({
     id: 'die',
     label: t.dice.name,

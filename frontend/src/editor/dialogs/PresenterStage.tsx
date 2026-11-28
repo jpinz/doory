@@ -78,10 +78,11 @@ export function PresenterStage({ doc, index, cache, onPointerDown, onPointerUp, 
     }
   }, [cache, doc, index, page, pixelWidth, settled, dpr, attempt])
 
-  const ready = frame !== null && frame.page === page
+  // A page whose content changed (a score update) keeps its current picture until the new one is ready.
+  const ready = frame !== null && frame.page.id === page.id
   useLayoutEffect(() => {
     const target = canvasRef.current
-    if (!target || !frame || frame.page !== page) return
+    if (!target || !frame || frame.page.id !== page.id) return
     target.width = frame.canvas.width
     target.height = frame.canvas.height
     target.getContext('2d')?.drawImage(frame.canvas, 0, 0)
@@ -89,7 +90,7 @@ export function PresenterStage({ doc, index, cache, onPointerDown, onPointerUp, 
 
   const name = (page.name ?? '').trim()
   const label = t.presenter.stage(index + 1, doc.pages.length, name)
-  const missing = !ready && failed === page
+  const missing = !ready && failed?.id === page.id
   return (
     <div ref={ref} className={styles.stage} data-testid="present-stage" onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
       <div className={styles.frameBox} style={{ left: shown.css.x, top: shown.css.y, width: shown.css.width, height: shown.css.height }} data-testid="present-frame-box">

@@ -10,6 +10,7 @@ import { defaultWheel } from '../dynamic/interactive/wheel/model'
 import { t } from '../strings'
 import { openLink } from '../presenter/channel'
 import { createChannelHub } from '../presenter/testing'
+import type { Scoreboard } from '../presenter/scoreboard'
 import { Presenter } from './Presenter'
 
 class FakeObserver {
@@ -180,6 +181,39 @@ describe('Presenter with motion', () => {
       close(): void { this.channel.close() }
     })
   }
+
+  it('updates and hides individual score cards through the channel and saves the scoreboard with the design', async () => {
+    const session = 'a1b2c3d4e5f60718293a4b5c6d7e8f92'
+    linkView()
+    const doc = createBlankDocument(400, 300)
+    const pageId = doc.pages[0].id
+    const card = { type: 'doryscorecard', width: 140, height: 90, top: 150, originX: 'center', originY: 'center', scoreCard: { entryId: 'team', name: 'Team' } }
+    doc.pages[0].objects = [{ ...card, id: 'c1', left: 100 }, { ...card, id: 'c2', left: 300 }]
+    const view = openLink(session, 'view')!
+    let board: Scoreboard | null = null
+    view.subscribe((message) => { if (message.kind === 'scoreboard') board = message.scoreboard })
+    engine = await setup(doc, { session })
+    const pages = JSON.stringify(engine.state.doc.pages)
+    act(() => view.send({ kind: 'hello' }))
+    await waitFor(() => expect(board?.entries[0].score).toBe(0))
+    await waitFor(() => expect(screen.getByTestId('present-frame')).toHaveAttribute('data-ready', 'true'))
+    const frame = screen.getByTestId('present-frame') as HTMLCanvasElement
+    const pixels = () => frame.getContext('2d')!.getImageData(0, 0, frame.width, frame.height).data.reduce((sum, value) => sum + value, 0)
+    const before = pixels()
+    act(() => view.send({ kind: 'command', command: { action: 'score-adjust', entryId: 'team', value: 5 } }))
+    await waitFor(() => expect(board?.entries[0].score).toBe(5))
+    await waitFor(() => expect(pixels()).not.toEqual(before))
+    act(() => view.send({ kind: 'command', command: { action: 'score-card', pageId, cardId: 'c1', visible: false } }))
+    await waitFor(() => {
+      expect([...frame.getContext('2d')!.getImageData(100, 220, 1, 1).data]).toEqual([255, 255, 255, 255])
+      expect([...frame.getContext('2d')!.getImageData(500, 220, 1, 1).data]).toEqual([106, 82, 217, 255])
+    })
+    expect((board as Scoreboard | null)?.cards[1].visible).toBe(true)
+    expect(frame).toHaveAttribute('data-page-id', pageId)
+    expect(JSON.stringify(engine.state.doc.pages)).toBe(pages)
+    expect(engine.state.doc.scoreboard).toEqual({ entries: [{ id: 'team', name: 'Team', score: 5 }], cards: [{ pageId, id: 'c1', entryId: 'team', visible: false }] })
+    view.close()
+  })
 
   it('spins the current wheel from the presenter channel and reports its result', async () => {
     const session = 'a1b2c3d4e5f60718293a4b5c6d7e8f90'

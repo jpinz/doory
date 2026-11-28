@@ -47,6 +47,11 @@ AUDIO_MS_RANGES = {
     "fadeOutMs": (0, 60_000),
 }
 AUDIO_FLAGS = ("loop", "muted", "duckUnderVoiceover")
+MAX_SCORE_ENTRIES = 100
+MAX_SCORE_CARDS = 1_000
+MAX_SCORE_ID_LENGTH = 64
+MAX_SCORE_NAME_LENGTH = 80
+SCORE_LIMIT = 1_000_000
 
 _LOCAL_REFERENCE = re.compile(r"\s*(?:blob:|idb://)\S*\s*", re.IGNORECASE)
 
@@ -212,6 +217,44 @@ def _check_audio_tracks(doc: dict) -> None:
         _check_audio_track(track, index, seen)
 
 
+def _is_score_id(value: object) -> bool:
+    return isinstance(value, str) and 0 < len(value) <= MAX_SCORE_ID_LENGTH
+
+
+def _check_scoreboard(doc: dict) -> None:
+    """`scoreboard`: the presentation's players and scores, and the score cards changed while presenting."""
+    board = doc.get("scoreboard")
+    if board is None:
+        return
+    if not isinstance(board, dict):
+        raise InvalidDocument("`scoreboard` must be an object.")
+    entries, cards = board.get("entries"), board.get("cards")
+    if not isinstance(entries, list) or len(entries) > MAX_SCORE_ENTRIES:
+        raise InvalidDocument(f"`scoreboard.entries` must be a list of at most {MAX_SCORE_ENTRIES} players.")
+    if not isinstance(cards, list) or len(cards) > MAX_SCORE_CARDS:
+        raise InvalidDocument(f"`scoreboard.cards` must be a list of at most {MAX_SCORE_CARDS} cards.")
+    seen: set[str] = set()
+    for index, entry in enumerate(entries):
+        where = f"Scoreboard player {index + 1}"
+        if not isinstance(entry, dict) or not _is_score_id(entry.get("id")) or entry["id"] in seen:
+            raise InvalidDocument(f"{where} needs a unique string `id`.")
+        seen.add(entry["id"])
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip() or len(name) > MAX_SCORE_NAME_LENGTH:
+            raise InvalidDocument(f"{where} needs a `name` of 1 to {MAX_SCORE_NAME_LENGTH} characters.")
+        score = entry.get("score")
+        if not _is_int(score) or abs(score) > SCORE_LIMIT:
+            raise InvalidDocument(f"{where} needs a whole `score` between -{SCORE_LIMIT} and {SCORE_LIMIT}.")
+    for index, card in enumerate(cards):
+        where = f"Scoreboard card {index + 1}"
+        if not isinstance(card, dict) or not all(_is_score_id(card.get(key)) for key in ("pageId", "id")):
+            raise InvalidDocument(f"{where} needs string `pageId` and `id`.")
+        if card.get("entryId") is not None and not _is_score_id(card["entryId"]):
+            raise InvalidDocument(f"{where} has an invalid `entryId`.")
+        if not isinstance(card.get("visible"), bool):
+            raise InvalidDocument(f"{where} needs a boolean `visible`.")
+
+
 def _check_structure(doc: object) -> DocumentInfo:
     if not isinstance(doc, dict):
         raise InvalidDocument("The document must be a JSON object.")
@@ -254,6 +297,7 @@ def _check_structure(doc: object) -> DocumentInfo:
         _check_animation(page, index)
 
     _check_audio_tracks(doc)
+    _check_scoreboard(doc)
 
     meta = doc.get("meta")
     if meta is not None and not isinstance(meta, dict):

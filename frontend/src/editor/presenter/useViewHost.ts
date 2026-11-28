@@ -16,6 +16,7 @@ import { NOTES_MAX_LENGTH } from './timing'
 import { t } from '../strings'
 import { dieDocuments } from '../dynamic/interactive/dice/model'
 import { wheelDocuments } from '../dynamic/interactive/wheel/model'
+import type { Scoreboard, ScoreCommand } from './scoreboard'
 
 /** How often the state is re-sent while a presenter view is connected, so its clocks stay true. */
 const HEARTBEAT_MS = 1000
@@ -35,6 +36,9 @@ export interface ViewHostOptions {
   onRollDice: (pageId: string, dieIds: readonly string[]) => boolean
   /** Renders the small pictures the view shows. Separate from the stage's cache: different sizes. */
   previews: FrameCache
+  scoreboard?: Scoreboard
+  previewDoc?: DoryDocument
+  onScoreCommand?: (command: ScoreCommand) => void
   /** Tests stand in for BroadcastChannel. */
   createChannel?: (name: string) => ChannelLike | null
 }
@@ -107,7 +111,7 @@ export function previewsOf(doc: DoryDocument, durations: readonly (number | null
   })
 }
 
-function actionOf(command: Exclude<ViewCommand, { action: 'spin-wheel' | 'roll-dice' }>): SlideshowAction | 'exit' {
+function actionOf(command: Exclude<ViewCommand, { action: 'spin-wheel' | 'roll-dice' } | ScoreCommand>): SlideshowAction | 'exit' {
   switch (command.action) {
     case 'next':
     case 'prev':
@@ -160,10 +164,14 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
         case 'hello':
           views.add(message.viewId ?? '')
           setConnected(true)
-          opened.send({ kind: 'init', title: o.title.slice(0, 300) || t.untitled, theme: currentTheme(), pages: previewsRef.current, state: o.state })
+          opened.send({ kind: 'init', title: o.title.slice(0, 300) || t.untitled, theme: currentTheme(), pages: previewsRef.current, state: o.state, ...(o.scoreboard ? { scoreboard: o.scoreboard } : {}) })
           break
         case 'command': {
           const command = message.command
+          if (command.action === 'score-set' || command.action === 'score-adjust' || command.action === 'score-card') {
+            if (!o.state.ended) o.onScoreCommand?.(command)
+            break
+          }
           if (command.action === 'spin-wheel' || command.action === 'roll-dice') {
             const { pageId } = command
             if (o.state.ended || o.state.blackout || o.doc.pages[o.state.index]?.id !== pageId) break
@@ -177,7 +185,7 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
           break
         }
         case 'need-frame':
-          void sendFrame(opened, o.previews, o.doc.pages.find((p) => p.id === message.pageId), message.width)
+          void sendFrame(opened, o.previews, (o.previewDoc ?? o.doc).pages.find((p) => p.id === message.pageId), message.width, () => latest.current.previews === o.previews)
           break
         case 'bye':
           if (message.viewId === undefined) views.clear()
@@ -200,6 +208,10 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
     }
   }, [session, createChannel, latest, previewsRef])
 
+  useEffect(() => {
+    if (connected && options.scoreboard) linkRef.current?.send({ kind: 'scoreboard', scoreboard: options.scoreboard })
+  }, [connected, options.scoreboard])
+
   // The state goes out when something other than a clock changed, and again every second while a view is listening.
   const { index, ended, autoAdvance, paused, loop, blackout } = options.state
   useEffect(() => {
@@ -218,11 +230,12 @@ export function useViewHost(options: ViewHostOptions): ViewHost {
   return { supported, connected, interactiveStatus }
 }
 
-async function sendFrame(link: PresenterLink, cache: FrameCache, page: DocPage | undefined, width: number): Promise<void> {
+async function sendFrame(link: PresenterLink, cache: FrameCache, page: DocPage | undefined, width: number, current: () => boolean): Promise<void> {
   if (!page) return
   try {
     const canvas = await cache.get(page, width)
     const image = await canvasToBlob(canvas, 'image/png')
+    if (!current()) return
     link.send({ kind: 'frame', pageId: page.id, width, image })
   } catch {
     /* the view keeps showing "Loading…" for this page and asks again when it needs it */
